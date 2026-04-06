@@ -4,8 +4,8 @@
   "description": "WhatsApp sales agent bot for Media Prestige",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node dashboard-server.js",
+    "dev": "nodemon dashboard-server.js"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",

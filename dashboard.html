@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Prestige - Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e0e0e0;
+        }
+
+        .dashboard {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Glassmorphism Card Effect */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.320, 1);
+        }
+
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: translateY(-8px);
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.3);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 40px 30px;
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+            border-radius: 20px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .header .logo {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header .logo-icon {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+        }
+
+        .header h1 {
+            color: #ffffff;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .header .subtitle {
+            color: rgba(224, 224, 224, 0.7);
+            font-size: 14px;
+            margin-top: 8px;
+            font-weight: 400;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+
+        .control-suite {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .control-card {
+            padding: 24px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(203, 170, 107, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
+            border: 1px solid rgba(203, 170, 107, 0.24);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+        }
+
+        .control-card h3 {
+            color: #f7f0e5;
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .control-copy {
+            color: rgba(232, 226, 217, 0.76);
+            line-height: 1.6;
+            margin-bottom: 18px;
+        }
+
+        .control-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .luxury-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .luxury-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .luxury-btn.primary {
+            background: linear-gradient(135deg, #d7b36a 0%, #f2dfb2 100%);
+            color: #231b12;
+            box-shadow: 0 12px 24px rgba(215, 179, 106, 0.28);
+        }
+
+        .luxury-btn.secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: #f4ede1;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+        }
+
+        .luxury-btn.danger {
+            background: linear-gradient(135deg, #752f35 0%, #b84d54 100%);
+            color: #fff7f7;
+            box-shadow: 0 12px 24px rgba(184, 77, 84, 0.18);
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f4ede1;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #c99a4b;
+            box-shadow: 0 0 14px rgba(201, 154, 75, 0.5);
+        }
+
+        .status-dot.running {
+            background: #54c47a;
+            box-shadow: 0 0 14px rgba(84, 196, 122, 0.5);
+        }
+
+        .status-dot.stopped {
+            background: #d16262;
+            box-shadow: 0 0 14px rgba(209, 98, 98, 0.5);
+        }
+
+        .status-meta {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .status-metric {
+            padding: 14px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .status-metric .label {
+            display: block;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(224, 224, 224, 0.65);
+            margin-bottom: 8px;
+        }
+
+        .status-metric .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .bot-console {
+            margin-top: 18px;
+            background: rgba(10, 10, 14, 0.78);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px;
+            height: 260px;
+            overflow: auto;
+            font-family: "Consolas", "SFMono-Regular", monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            color: #f1e7d6;
+        }
+
+        .bot-console .muted {
+            color: rgba(241, 231, 214, 0.62);
+        }
+
+        @media (max-width: 1100px) {
+            .control-suite {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            padding: 20px;
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 100%);
+            pointer-events: none;
+        }
+
+        .stat-card > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .stat-card.total { background: linear-gradient(135deg, rgba(25, 118, 210, 0.2) 0%, rgba(66, 133, 244, 0.1) 100%); border: 1px solid rgba(66, 133, 244, 0.3); }
+        .stat-card.new { background: linear-gradient(135deg, rgba(245, 124, 0, 0.2) 0%, rgba(255, 152, 0, 0.1) 100%); border: 1px solid rgba(255, 152, 0, 0.3); }
+        .stat-card.interested { background: linear-gradient(135deg, rgba(56, 142, 60, 0.2) 0%, rgba(76, 175, 80, 0.1) 100%); border: 1px solid rgba(76, 175, 80, 0.3); }
+        .stat-card.confirmed { background: linear-gradient(135deg, rgba(194, 24, 91, 0.2) 0%, rgba(233, 30, 99, 0.1) 100%); border: 1px solid rgba(233, 30, 99, 0.3); }
+
+        .stat-card .progress-circle {
+            position: relative;
+            width: 90px;
+            height: 90px;
+            margin-bottom: 12px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .stat-card .progress-circle svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+        }
+
+        .stat-card .progress-circle-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 2;
+        }
+
+        .stat-card .progress-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .stat-card .progress-percent {
+            font-size: 11px;
+            color: rgba(224, 224, 224, 0.8);
+            margin-top: 2px;
+        }
+
+        .stat-card .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+            letter-spacing: -1px;
+        }
+
+        .stat-card .stat-label {
+            color: rgba(224, 224, 224, 0.8);
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .analytics-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric-card {
+            padding: 16px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border: 1px solid rgba(102, 126, 234, 0.25);
+        }
+
+        .metric-card .metric-label {
+            color: rgba(224, 224, 224, 0.8);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+
+        .metric-card .metric-suffix {
+            font-size: 13px;
+            color: rgba(224, 224, 224, 0.6);
+            margin-left: 4px;
+        }
+
+        .products-section {
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+        }
+
+        .products-section h3 {
+            color: #ffffff;
+            font-size: 16px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .products-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .product-item {
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .product-item:hover {
+            background: rgba(102, 126, 234, 0.15);
+            border-color: rgba(102, 126, 234, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .product-name {
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .product-count {
+            color: rgba(224, 224, 224, 0.7);
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .product-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .product-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+            transition: width 0.6s ease;
+        }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            padding: 32px;
+            border-radius: 16px;
+        }
+
+        .chart-card h3 {
+            color: #ffffff;
+            font-size: 18px;
+            margin-bottom: 24px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+        }
+
+        .leads-table-card {
+            padding: 32px;
+            border-radius: 16px;
+        }
+
+        .leads-table-card h3 {
+            color: #ffffff;
+            font-size: 18px;
+            margin-bottom: 24px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            letter-spacing: -0.3px;
+        }
+
+        .leads-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .leads-table th {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #ffffff;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .leads-table td {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 14px;
+            color: rgba(224, 224, 224, 0.9);
+        }
+
+        .leads-table tr:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-block;
+        }
+
+        .status-badge.new {
+            background: rgba(255, 152, 0, 0.25);
+            color: #ffb74d;
+            border: 1px solid rgba(255, 152, 0, 0.5);
+        }
+
+        .status-badge.interested {
+            background: rgba(76, 175, 80, 0.25);
+            color: #81c784;
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+
+        .status-badge.confirmed {
+            background: rgba(233, 30, 99, 0.25);
+            color: #f06292;
+            border: 1px solid rgba(233, 30, 99, 0.5);
+        }
+
+        .filter-section {
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            color: rgba(224, 224, 224, 0.8);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 10px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .filter-group input::placeholder {
+            color: rgba(224, 224, 224, 0.5);
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: rgba(102, 126, 234, 0.6);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 12px rgba(102, 126, 234, 0.25);
+        }
+
+        .filter-group select option {
+            background: #1a1a2e;
+            color: #ffffff;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-btn {
+            padding: 10px 16px;
+            border: 1px solid rgba(102, 126, 234, 0.4);
+            border-radius: 8px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.6);
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: white;
+        }
+
+        .export-btn {
+            padding: 10px 16px;
+            border: 1px solid rgba(76, 175, 80, 0.4);
+            border-radius: 8px;
+            background: rgba(76, 175, 80, 0.1);
+            color: #81c784;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .export-btn:hover {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: rgba(76, 175, 80, 0.6);
+        }
+
+        .export-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .export-menu {
+            display: none;
+            position: absolute;
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            border-radius: 8px;
+            min-width: 150px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            z-index: 100;
+            top: 100%;
+            right: 0;
+            margin-top: 6px;
+            backdrop-filter: blur(10px);
+        }
+
+        .export-menu.active {
+            display: block;
+        }
+
+        .export-menu a {
+            color: #81c784;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            border-bottom: 1px solid rgba(76, 175, 80, 0.1);
+            transition: all 0.2s ease;
+        }
+
+        .export-menu a:last-child {
+            border-bottom: none;
+        }
+
+        .export-menu a:hover {
+            background: rgba(76, 175, 80, 0.15);
+            padding-left: 20px;
+        }
+
+        .datetime-display {
+            color: rgba(224, 224, 224, 0.7);
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: auto;
+        }
+
+        .datetime-display .date {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .datetime-display .time {
+            display: block;
+            font-size: 11px;
+            color: rgba(224, 224, 224, 0.7);
+        }
+
+        .filter-results {
+            color: rgba(224, 224, 224, 0.6);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 40px;
+            color: rgba(224, 224, 224, 0.5);
+            font-size: 14px;
+        }
+
+        /* Loading animation */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 2s infinite;
+        }
+
+        @media (max-width: 1024px) {
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                text-align: center;
+                gap: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header .logo {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loginOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+        <div class="glass-card" style="padding: 40px; text-align: center; max-width: 400px; width: 90%;">
+            <h2 style="color: #ffffff; margin-bottom: 10px;">Media Prestige</h2>
+            <p style="color: rgba(224, 224, 224, 0.7); margin-bottom: 30px;">Enter your password to access the dashboard</p>
+            <input type="password" id="loginPassword" placeholder="Enter password" style="width: 100%; padding: 14px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 16px; margin-bottom: 15px; box-sizing: border-box;">
+            <button onclick="login()" class="refresh-btn" style="width: 100%;">Login</button>
+            <p id="loginError" style="color: #ff6b6b; margin-top: 15px; font-size: 14px; display: none;"></p>
+        </div>
+    </div>
+
+    <div class="dashboard" id="dashboardContent" style="display: none;">
+        <div class="header glass-card">
+            <div class="logo">
+                <div class="logo-icon">
+                    <img src="public/logo.webp" alt="Media Prestige Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                <div>
+                    <h1>Media Prestige Analytics</h1>
+                    <div class="subtitle">Real-time Leads & Performance Metrics</div>
+                </div>
+            </div>
+            <button class="refresh-btn" onclick="loadData()">🔄 Refresh</button>
+            <button class="refresh-btn" style="margin-left: 10px;" onclick="logout()">🚪 Logout</button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card total glass-card">
+                <div class="progress-circle" id="totalCircle">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+                        <circle id="totalProgress" cx="50" cy="50" r="45" fill="none" stroke="#64b5f6" stroke-width="8" 
+                                stroke-dasharray="282.7" stroke-dashoffset="282.7" stroke-linecap="round"
+                                style="transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.8s ease;"/>
+                    </svg>
+                    <div class="progress-circle-text">
+                        <div class="progress-value" id="totalLeads">0</div>
+                        <div class="progress-percent">Leads</div>
+                    </div>
+                </div>
+                <div class="stat-label">TOTAL LEADS</div>
+            </div>
+            <div class="stat-card new glass-card">
+                <div class="progress-circle" id="newCircle">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+                        <circle id="newProgress" cx="50" cy="50" r="45" fill="none" stroke="#ffb74d" stroke-width="8" 
+                                stroke-dasharray="282.7" stroke-dashoffset="282.7" stroke-linecap="round"
+                                style="transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.8s ease;"/>
+                    </svg>
+                    <div class="progress-circle-text">
+                        <div class="progress-value" id="newLeads">0</div>
+                        <div class="progress-percent" id="newPercent">0%</div>
+                    </div>
+                </div>
+                <div class="stat-label">NEW</div>
+            </div>
+            <div class="stat-card interested glass-card">
+                <div class="progress-circle" id="interestedCircle">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+                        <circle id="interestedProgress" cx="50" cy="50" r="45" fill="none" stroke="#81c784" stroke-width="8" 
+                                stroke-dasharray="282.7" stroke-dashoffset="282.7" stroke-linecap="round"
+                                style="transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.8s ease;"/>
+                    </svg>
+                    <div class="progress-circle-text">
+                        <div class="progress-value" id="interestedLeads">0</div>
+                        <div class="progress-percent" id="interestedPercent">0%</div>
+                    </div>
+                </div>
+                <div class="stat-label">INTERESTED</div>
+            </div>
+            <div class="stat-card confirmed glass-card">
+                <div class="progress-circle" id="confirmedCircle">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+                        <circle id="confirmedProgress" cx="50" cy="50" r="45" fill="none" stroke="#f06292" stroke-width="8" 
+                                stroke-dasharray="282.7" stroke-dashoffset="282.7" stroke-linecap="round"
+                                style="transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.8s ease;"/>
+                    </svg>
+                    <div class="progress-circle-text">
+                        <div class="progress-value" id="confirmedLeads">0</div>
+                        <div class="progress-percent" id="confirmedPercent">0%</div>
+                    </div>
+                </div>
+                <div class="stat-label">CONFIRMED</div>
+            </div>
+        </div>
+
+        <div class="analytics-row">
+            <div class="metric-card glass-card">
+                <div class="metric-label">Avg Messages</div>
+                <div class="metric-value" id="avgMessages">0<span class="metric-suffix">/lead</span></div>
+            </div>
+            <div class="metric-card glass-card">
+                <div class="metric-label">Conversion Rate</div>
+                <div class="metric-value" id="conversionRate">0<span class="metric-suffix">%</span></div>
+            </div>
+            <div class="metric-card glass-card">
+                <div class="metric-label">Interested Rate</div>
+                <div class="metric-value" id="interestedRate">0<span class="metric-suffix">%</span></div>
+            </div>
+            <div class="metric-card glass-card">
+                <div class="metric-label">Engagement</div>
+                <div class="metric-value" id="engagementScore">0<span class="metric-suffix">%</span></div>
+            </div>
+        </div>
+
+        <div class="products-section glass-card">
+            <h3>🏆 Top Performing Products</h3>
+            <div class="products-list" id="productsList">
+                <div style="color: rgba(224, 224, 224, 0.5); font-size: 12px;">Loading products...</div>
+            </div>
+        </div>
+            <div class="chart-card glass-card">
+                <h3>📈 Leads Over Time</h3>
+                <div class="chart-container">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card glass-card">
+                <h3>📊 Status Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-section glass-card">
+            <div class="filter-group">
+                <label>Search Phone</label>
+                <input type="text" id="searchPhone" placeholder="e.g., +212..." onkeyup="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label>Status</label>
+                <select id="filterStatus" onchange="applyFilters()">
+                    <option value="">All Status</option>
+                    <option value="new">New</option>
+                    <option value="interested">Interested</option>
+                    <option value="confirmed">Confirmed</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>From Date</label>
+                <input type="date" id="filterDateFrom" onchange="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label>To Date</label>
+                <input type="date" id="filterDateTo" onchange="applyFilters()">
+            </div>
+            <div class="filter-actions">
+                <button class="filter-btn" onclick="applyFilters()">Apply Filters</button>
+                <button class="filter-btn" onclick="clearFilters()">Clear</button>
+                <div class="export-dropdown">
+                    <button class="export-btn" onclick="toggleExportMenu()">📥 Export</button>
+                    <div class="export-menu" id="exportMenu">
+                        <a href="javascript:exportToCSV()">📄 CSV</a>
+                        <a href="javascript:exportToJSON()">📋 JSON</a>
+                        <a href="javascript:exportToExcel()">📊 Excel</a>
+                    </div>
+                </div>
+            </div>
+            <div class="datetime-display">
+                <span class="date" id="currentDate">-</span>
+                <span class="time" id="currentTime">-</span>
+            </div>
+            <div class="filter-results" id="filterResults"></div>
+        </div>
+            <h3>
+                📋 Recent Leads
+                <span id="leadsCount">(0 leads)</span>
+            </h3>
+            <table class="leads-table">
+                <thead>
+                    <tr>
+                        <th>Phone</th>
+                        <th>Status</th>
+                        <th>Products</th>
+                        <th>Message</th>
+                        <th>Notes</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="leadsTableBody">
+                    <tr>
+                        <td colspan="6" class="no-data">Loading leads data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="control-suite">
+            <div class="control-card">
+                <h3>Bot Control Suite</h3>
+                <div class="control-copy">Start, stop, and monitor the WhatsApp bot from this browser dashboard instead of the unstable desktop popup. This is now the main control surface.</div>
+                <div class="control-actions">
+                    <button class="luxury-btn primary" id="startBotBtn" type="button">Start Bot</button>
+                    <button class="luxury-btn danger" id="stopBotBtn" type="button">Stop Bot</button>
+                    <button class="luxury-btn secondary" id="restartBotBtn" type="button">Restart Bot</button>
+                    <button class="luxury-btn secondary" id="clearLogsBtn" type="button">Clear Logs</button>
+                </div>
+                <div class="bot-console" id="botConsole"><span class="muted">Waiting for bot logs...</span></div>
+            </div>
+
+            <div class="control-card">
+                <h3>Runtime Status</h3>
+                <div class="control-copy">Live health for the local control server and the WhatsApp bot process.</div>
+                <div class="status-pill">
+                    <span class="status-dot stopped" id="botStatusDot"></span>
+                    <span id="botStatusText">Stopped</span>
+                </div>
+                <div class="status-meta">
+                    <div class="status-metric">
+                        <span class="label">Bot PID</span>
+                        <span class="value" id="botPidValue">-</span>
+                    </div>
+                    <div class="status-metric">
+                        <span class="label">Bot Started</span>
+                        <span class="value" id="botStartedValue">-</span>
+                    </div>
+                    <div class="status-metric">
+                        <span class="label">Server Started</span>
+                        <span class="value" id="serverStartedValue">-</span>
+                    </div>
+                    <div class="status-metric">
+                        <span class="label">Log Lines</span>
+                        <span class="value" id="logCountValue">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="last-updated">
+            Last updated: <span id="lastUpdated">-</span> | Auto-refresh in 30s
+        </div>
+    </div>
+
+    <script>
+        let timelineChart = null;
+        let statusChart = null;
+        let autoRefreshInterval = null;
+        let controlRefreshInterval = null;
+        let allLeads = [];
+
+        // Authentication functions
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/check');
+                const data = await response.json();
+                if (data.authenticated) {
+                    showDashboard();
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+            }
+        }
+
+        async function login() {
+            const password = document.getElementById('loginPassword').value;
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await response.json();
+                if (data.ok) {
+                    showDashboard();
+                } else {
+                    document.getElementById('loginError').textContent = data.error || 'Invalid password';
+                    document.getElementById('loginError').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('loginError').textContent = 'Login failed. Please try again.';
+                document.getElementById('loginError').style.display = 'block';
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                hideDashboard();
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('dashboardContent').style.display = 'block';
+            initDashboard();
+        }
+
+        function hideDashboard() {
+            document.getElementById('loginOverlay').style.display = 'flex';
+            document.getElementById('dashboardContent').style.display = 'none';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginError').style.display = 'none';
+        }
+
+        function initDashboard() {
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+            loadData();
+            loadControlStatus();
+            loadBotLogs();
+            
+            autoRefreshInterval = setInterval(() => loadData(), 30000);
+            controlRefreshInterval = setInterval(() => {
+                loadControlStatus();
+                loadBotLogs();
+            }, 2000);
+
+            document.getElementById('startBotBtn').addEventListener('click', () => controlAction('/api/control/start'));
+            document.getElementById('stopBotBtn').addEventListener('click', () => controlAction('/api/control/stop'));
+            document.getElementById('restartBotBtn').addEventListener('click', () => controlAction('/api/control/restart'));
+            document.getElementById('clearLogsBtn').addEventListener('click', () => controlAction('/api/control/clear-logs'));
+        }
+
+        // Check auth on page load
+        checkAuth();
+
+        // Allow Enter key to submit password
+        document.getElementById('loginPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') login();
+        });
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            const timeStr = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+            
+            document.getElementById('currentDate').textContent = dateStr;
+            document.getElementById('currentTime').textContent = timeStr;
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch('/api/leads', {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
+                const leads = await response.json();
+
+                // Map API response fields to dashboard fields
+                allLeads = leads.map(lead => ({
+                    phone: lead['Phone Number'] || lead.phone || '',
+                    status: lead['Status'] || lead.status || '',
+                    message: lead['Last Message'] || lead.message || '',
+                    notes: lead['Notes'] || lead.notes || '',
+                    products: lead['Products'] || lead.products || '',
+                    date: lead['Timestamp'] || lead.date || ''
+                })).filter(lead => lead.phone);
+
+                if (allLeads.length === 0) {
+                    document.getElementById('leadsTableBody').innerHTML = 
+                        '<tr><td colspan="6" class="no-data">No leads data available</td></tr>';
+                    return;
+                }
+
+                updateStats(allLeads);
+                applyFilters(); // Apply filters and update table
+                
+                document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('leadsTableBody').innerHTML = 
+                    `<tr><td colspan="6" class="no-data">Error loading data: ${error.message}</td></tr>`;
+            }
+        }
+
+        async function apiRequest(url, options = {}) {
+            const response = await fetch(url, {
+                method: options.method || 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(options.headers || {})
+                },
+                body: options.body ? JSON.stringify(options.body) : undefined
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed: ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        function formatRuntimeDate(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '-';
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function updateControlStatus(status) {
+            const dot = document.getElementById('botStatusDot');
+            const statusText = document.getElementById('botStatusText');
+            const botStatus = (status.botStatus || 'stopped').toLowerCase();
+
+            dot.className = 'status-dot';
+            if (botStatus === 'running') {
+                dot.classList.add('running');
+            } else if (botStatus === 'stopped') {
+                dot.classList.add('stopped');
+            }
+
+            statusText.textContent = botStatus.charAt(0).toUpperCase() + botStatus.slice(1);
+            document.getElementById('botPidValue').textContent = status.botPid || '-';
+            document.getElementById('botStartedValue').textContent = formatRuntimeDate(status.botStartedAt);
+            document.getElementById('serverStartedValue').textContent = formatRuntimeDate(status.dashboardStartedAt);
+            document.getElementById('logCountValue').textContent = status.logCount ?? 0;
+        }
+
+        async function loadControlStatus() {
+            try {
+                const status = await apiRequest('/api/control/status');
+                updateControlStatus(status);
+            } catch (error) {
+                console.error('Error loading control status:', error);
+            }
+        }
+
+        async function loadBotLogs() {
+            try {
+                const payload = await apiRequest('/api/control/logs');
+                const consoleEl = document.getElementById('botConsole');
+
+                if (!payload.lines || !payload.lines.length) {
+                    consoleEl.innerHTML = '<span class="muted">No logs yet.</span>';
+                    return;
+                }
+
+                consoleEl.textContent = payload.lines.join('\n');
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            } catch (error) {
+                console.error('Error loading bot logs:', error);
+            }
+        }
+
+        async function controlAction(endpoint) {
+            try {
+                await apiRequest(endpoint, { method: 'POST' });
+                await Promise.all([loadControlStatus(), loadBotLogs()]);
+            } catch (error) {
+                console.error(`Control action failed for ${endpoint}:`, error);
+                alert('Action failed. Please check the local control server.');
+            }
+        }
+
+        function applyFilters() {
+            const searchPhone = document.getElementById('searchPhone').value.toLowerCase();
+            const filterStatus = document.getElementById('filterStatus').value.toLowerCase();
+            const filterDateFrom = document.getElementById('filterDateFrom').value;
+            const filterDateTo = document.getElementById('filterDateTo').value;
+
+            let filtered = allLeads.filter(lead => {
+                // Search by phone
+                if (searchPhone && !lead.phone.toLowerCase().includes(searchPhone)) {
+                    return false;
+                }
+
+                // Filter by status
+                if (filterStatus && lead.status.toLowerCase() !== filterStatus) {
+                    return false;
+                }
+
+                // Filter by date range
+                if (filterDateFrom || filterDateTo) {
+                    const leadDate = new Date(lead.date).toISOString().split('T')[0];
+                    
+                    if (filterDateFrom && leadDate < filterDateFrom) {
+                        return false;
+                    }
+                    
+                    if (filterDateTo && leadDate > filterDateTo) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            updateTable(filtered);
+            
+            const resultsText = `${filtered.length} of ${allLeads.length} leads`;
+            document.getElementById('filterResults').textContent = resultsText;
+        }
+
+        function clearFilters() {
+            document.getElementById('searchPhone').value = '';
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            document.getElementById('filterResults').textContent = '';
+            applyFilters();
+        }
+
+        function toggleExportMenu() {
+            const menu = document.getElementById('exportMenu');
+            menu.classList.toggle('active');
+            
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.export-dropdown')) {
+                    menu.classList.remove('active');
+                }
+            });
+        }
+
+        function getFilteredData() {
+            // Get the currently displayed data from the table
+            const tbody = document.getElementById('leadsTableBody');
+            const rows = tbody.querySelectorAll('tr');
+            
+            const data = [];
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                // Skip rows that are too short or are the "no data" message
+                if (cells.length >= 6 && !row.querySelector('.no-data')) {
+                    data.push({
+                        phone: cells[0].textContent.trim(),
+                        status: cells[1].textContent.trim(),
+                        products: cells[2].textContent.trim(),
+                        message: cells[3].textContent.trim(),
+                        notes: cells[4].textContent.trim(),
+                        date: cells[5].textContent.trim()
+                    });
+                }
+            });
+            
+            // If table parsing didn't work, fall back to allLeads with current filters applied
+            if (data.length === 0 && allLeads.length > 0) {
+                const searchPhone = document.getElementById('searchPhone').value.toLowerCase();
+                const filterStatus = document.getElementById('filterStatus').value.toLowerCase();
+                const filterDateFrom = document.getElementById('filterDateFrom').value;
+                const filterDateTo = document.getElementById('filterDateTo').value;
+
+                return allLeads.filter(lead => {
+                    if (searchPhone && !lead.phone.toLowerCase().includes(searchPhone)) return false;
+                    if (filterStatus && lead.status.toLowerCase() !== filterStatus) return false;
+                    if (filterDateFrom || filterDateTo) {
+                        const leadDate = new Date(lead.date).toISOString().split('T')[0];
+                        if (filterDateFrom && leadDate < filterDateFrom) return false;
+                        if (filterDateTo && leadDate > filterDateTo) return false;
+                    }
+                    return true;
+                });
+            }
+            
+            return data;
+        }
+
+        function exportToCSV() {
+            const data = getFilteredData();
+            if (data.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            let csv = '"Phone Number","Status","Products","Last Message","Notes","Timestamp"\n';
+            data.forEach(row => {
+                csv += `"${row.phone}","${row.status}","${(row.products || '').replace(/"/g, '""')}","${row.message.replace(/"/g, '""')}","${row.notes.replace(/"/g, '""')}","${row.date}"\n`;
+            });
+
+            downloadFile(csv, `leads_export_${new Date().getTime()}.csv`, 'text/csv');
+            document.getElementById('exportMenu').classList.remove('active');
+        }
+
+        function exportToJSON() {
+            const data = getFilteredData();
+            if (data.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const json = JSON.stringify(data, null, 2);
+            downloadFile(json, `leads_export_${new Date().getTime()}.json`, 'application/json');
+            document.getElementById('exportMenu').classList.remove('active');
+        }
+
+        function exportToExcel() {
+            const data = getFilteredData();
+            if (data.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            // Create table HTML for Excel
+            let html = '<table border="1"><tr><th>Phone Number</th><th>Status</th><th>Products</th><th>Last Message</th><th>Notes</th><th>Timestamp</th></tr>';
+            data.forEach(row => {
+                html += `<tr><td>${row.phone}</td><td>${row.status}</td><td>${row.products || ''}</td><td>${row.message}</td><td>${row.notes}</td><td>${row.date}</td></tr>`;
+            });
+            html += '</table>';
+
+            downloadFile(html, `leads_export_${new Date().getTime()}.xls`, 'application/vnd.ms-excel');
+            document.getElementById('exportMenu').classList.remove('active');
+        }
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type: type });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            
+            result.push(current.trim());
+            return result;
+        }
+
+        function updateStats(leads) {
+            const total = leads.length;
+            const newCount = leads.filter(l => l.status.toLowerCase() === 'new').length;
+            const interested = leads.filter(l => l.status.toLowerCase() === 'interested').length;
+            const confirmed = leads.filter(l => l.status.toLowerCase() === 'confirmed').length;
+
+            // Update values with animation
+            animateValue('totalLeads', total);
+            animateValue('newLeads', newCount);
+            animateValue('interestedLeads', interested);
+            animateValue('confirmedLeads', confirmed);
+
+            // Update progress circles
+            updateProgressCircle('totalProgress', 100); // Always 100% filled
+            
+            const newPercent = total > 0 ? Math.round((newCount / total) * 100) : 0;
+            const interestedPercent = total > 0 ? Math.round((interested / total) * 100) : 0;
+            const confirmedPercent = total > 0 ? Math.round((confirmed / total) * 100) : 0;
+
+            updateProgressCircle('newProgress', newPercent);
+            updateProgressCircle('interestedProgress', interestedPercent);
+            updateProgressCircle('confirmedProgress', confirmedPercent);
+
+            document.getElementById('newPercent').textContent = newPercent + '%';
+            document.getElementById('interestedPercent').textContent = interestedPercent + '%';
+            document.getElementById('confirmedPercent').textContent = confirmedPercent + '%';
+
+            // Update analytics
+            updateAnalytics(leads);
+
+            // Update charts with all leads
+            updateCharts(allLeads);
+        }
+
+        function updateAnalytics(leads) {
+            const total = leads.length;
+            
+            // Average messages per lead
+            const totalMessages = leads.reduce((sum, lead) => {
+                const count = parseInt(lead.message) || 1;
+                return sum + count;
+            }, 0);
+            const avgMessages = total > 0 ? Math.round(totalMessages / total) : 0;
+            
+            // Conversion rate (new + interested + confirmed)
+            const confirmedCount = leads.filter(l => l.status.toLowerCase() === 'confirmed').length;
+            const conversionRate = total > 0 ? Math.round((confirmedCount / total) * 100) : 0;
+            
+            // Interested rate (interested + confirmed)
+            const interestedCount = leads.filter(l => l.status.toLowerCase() === 'interested').length;
+            const engagedCount = interestedCount + confirmedCount;
+            const interestedRate = total > 0 ? Math.round((engagedCount / total) * 100) : 0;
+            
+            // Overall engagement score (quality metric)
+            const engagementScore = Math.round((conversionRate + interestedRate + avgMessages) / 3);
+
+            // Update UI
+            animateValue('avgMessages', avgMessages);
+            animateValue('conversionRate', conversionRate);
+            animateValue('interestedRate', interestedRate);
+            animateValue('engagementScore', engagementScore);
+        }
+
+        function updateProgressCircle(elementId, percent) {
+            const circle = document.getElementById(elementId);
+            const circumference = 282.7;
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+        }
+
+        function animateValue(elementId, value) {
+            const element = document.getElementById(elementId);
+            const current = parseInt(element.textContent) || 0;
+            const increment = value > current ? 1 : -1;
+            const duration = 800;
+            const steps = Math.abs(value - current);
+            const stepTime = duration / steps || 0;
+
+            if (steps === 0) {
+                element.textContent = value;
+                return;
+            }
+
+            let count = current;
+            const timer = setInterval(() => {
+                count += increment;
+                element.textContent = count;
+                if (count === value) {
+                    clearInterval(timer);
+                }
+            }, stepTime);
+        }
+
+        function updateTable(leads) {
+            const tbody = document.getElementById('leadsTableBody');
+            document.getElementById('leadsCount').textContent = `(${leads.length} leads)`;
+
+            if (leads.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="no-data">No leads data available</td></tr>';
+                return;
+            }
+
+            const recentLeads = leads.slice(-20).reverse();
+            
+            tbody.innerHTML = recentLeads.map(lead => `
+                <tr>
+                    <td><strong>${lead.phone}</strong></td>
+                    <td><span class="status-badge ${lead.status.toLowerCase()}">${lead.status}</span></td>
+                    <td>${lead.products ? lead.products.substring(0, 40) + (lead.products.length > 40 ? '...' : '') : '-'}</td>
+                    <td>${lead.message.substring(0, 30)}${lead.message.length > 30 ? '...' : ''}</td>
+                    <td>${lead.notes.substring(0, 30)}${lead.notes.length > 30 ? '...' : ''}</td>
+                    <td>${formatDate(lead.date)}</td>
+                </tr>
+            `).join('');
+            
+            // Update products list
+            updateProductsList(allLeads);
+        }
+
+        function updateProductsList(leads) {
+            const productMap = new Map();
+            
+            // Common product keywords to search for
+            const products = [
+                'L1 PRO 8', 'L1 PRO 16', 'Smart Soundbar', 'Smart Ultra Soundbar',
+                'Acoustimass', 'Acoustimass 3', 'Smart Ultra Caisson 700', 'Caisson de Bass Flush',
+                'Bose Music Amplifier', 'IZA2120', 'ZA250', 'DM2C', 'DM3', 'DM5', 'DM8C',
+                'FS2C', 'FS2SE', '251', '360P EC', 'Satellite Flush', 'Satellites'
+            ];
+            
+            // Count product mentions in notes AND Products field
+            leads.forEach(lead => {
+                // First check the dedicated Products field (highest priority)
+                if (lead.products) {
+                    const productList = lead.products.split(',').map(p => p.trim());
+                    productList.forEach(product => {
+                        const count = productMap.get(product) || 0;
+                        productMap.set(product, count + 1);
+                    });
+                }
+                
+                // Also check notes and message for product mentions
+                products.forEach(product => {
+                    const noteText = (lead.notes + ' ' + lead.message).toLowerCase();
+                    const productLower = product.toLowerCase();
+                    
+                    if (noteText.includes(productLower)) {
+                        const count = productMap.get(product) || 0;
+                        productMap.set(product, count + 1);
+                    }
+                });
+            });
+            
+            // Sort by count
+            const sorted = Array.from(productMap.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8); // Show top 8
+            
+            const maxCount = sorted.length > 0 ? sorted[0][1] : 1;
+            
+            const productsHtml = sorted.length > 0 
+                ? sorted.map(([product, count]) => {
+                    const percentage = (count / maxCount) * 100;
+                    return `
+                        <div class="product-item">
+                            <div class="product-name">${product}</div>
+                            <div class="product-count">${count} lead${count !== 1 ? 's' : ''}</div>
+                            <div class="product-bar">
+                                <div class="product-bar-fill" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')
+                : '<div style="color: rgba(224, 224, 224, 0.5); font-size: 12px; grid-column: 1/-1;">No products tracked yet</div>';
+            
+            document.getElementById('productsList').innerHTML = productsHtml;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function updateCharts(leads) {
+            updateStatusChart(leads);
+            updateTimelineChart(leads);
+        }
+
+        function updateStatusChart(leads) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            const newCount = leads.filter(l => l.status.toLowerCase() === 'new').length;
+            const interested = leads.filter(l => l.status.toLowerCase() === 'interested').length;
+            const confirmed = leads.filter(l => l.status.toLowerCase() === 'confirmed').length;
+
+            if (statusChart) {
+                statusChart.destroy();
+            }
+
+            statusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['New', 'Interested', 'Confirmed'],
+                    datasets: [{
+                        data: [newCount, interested, confirmed],
+                        backgroundColor: [
+                            'rgba(255, 152, 0, 0.8)',
+                            'rgba(76, 175, 80, 0.8)',
+                            'rgba(233, 30, 99, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 152, 0, 1)',
+                            'rgba(76, 175, 80, 1)',
+                            'rgba(233, 30, 99, 1)'
+                        ],
+                        borderWidth: 2,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12
+                                },
+                                color: 'rgba(224, 224, 224, 0.9)'
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        function updateTimelineChart(leads) {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            
+            const last7Days = [];
+            const counts = [];
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toISOString().split('T')[0];
+                last7Days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                
+                const count = leads.filter(lead => {
+                    try {
+                        const leadDate = new Date(lead.date).toISOString().split('T')[0];
+                        return leadDate === dateStr;
+                    } catch (e) {
+                        return false;
+                    }
+                }).length;
+                counts.push(count);
+            }
+
+            if (timelineChart) {
+                timelineChart.destroy();
+            }
+
+            timelineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: last7Days,
+                    datasets: [{
+                        label: 'Leads',
+                        data: counts,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.15)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#0f0c29',
+                        pointBorderWidth: 3,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                color: 'rgba(224, 224, 224, 0.7)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: 'rgba(224, 224, 224, 0.7)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initializeControlSuite() {
+            // This function is now part of initDashboard
+        }
+
+        // Initial setup handled by checkAuth and initDashboard
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            if (controlRefreshInterval) {
+                clearInterval(controlRefreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

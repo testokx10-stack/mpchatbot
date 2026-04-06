@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const BOT_SCRIPT = 'index.js';
 const LOG_LIMIT = 400;
 const DASHBOARD_PASSWORD = 'Mediaprestigeadmin';
@@ -318,7 +318,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/api/control/open-dashboard') {
-        createJsonResponse(res, 200, { ok: true, url: `http://localhost:${PORT}` });
+        const appUrl = process.env.FLY_APP_NAME ? `https://${process.env.FLY_APP_NAME}.fly.dev` : `http://localhost:${PORT}`;
+        createJsonResponse(res, 200, { ok: true, url: appUrl });
         return;
     }
 

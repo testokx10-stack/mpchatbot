@@ -1,0 +1,25 @@
+app = "app-late-leaf-2834"
+primary_region = "iad"
+
+[build]
+  image = ""
+
+[http]
+  port = "3001"
+  force_https = true
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3001
+
+  [services.ports]
+    port = "80"
+    handlers = ["http"]
+
+  [services.ports]
+    port = "443"
+    handlers = ["http"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

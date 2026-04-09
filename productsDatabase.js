@@ -130,14 +130,22 @@ const productsDatabase = {
     priceEn: '1950 DH TTC',
   },
   '251': {
-    nameFr: '251',
-    nameEn: '251 Speaker',
+    nameFr: '251 Enceinte Extérieure',
+    nameEn: '251 Outdoor Speaker',
     image: path.join(__dirname, 'public', '251.webp'),
     segment: 'professional',
-    descriptionFr: 'Enceinte professionnelle 251 pour installations',
-    descriptionEn: '251 professional speaker for installations',
+    descriptionFr: 'Enceinte extérieure Articulated Array® avec zone d\'écoute vaste ethomogène. Résistante aux conditions extrêmes: soleil, pluie, chaleur, gel, sel et eau.',
+    descriptionEn: 'Articulated Array® outdoor speaker with wide, homogeneous listening zone. Weather-resistant: sun, rain, heat, frost, salt and water.',
     priceFr: '3250 DH TTC',
     priceEn: '3250 DH TTC',
+    details: {
+      driverConfiguration: 'Woofer 13,34 cm + 2 wide-band 6,35 cm + 2 Twiddler® 6,35 cm',
+      enclosures: 'Boîtier multichambre breveté pour graves profondes avec minimum de distorsion',
+      housingMaterial: 'Polypropylène chargé de fibres de verre et de fibres minérales',
+      weatherResistance: 'Testée pour: soleil, pluie, chaleur, gel, sel, eau',
+      mounting: 'Supports et équipements résistants aux intempéries pour installation permanente',
+      tweeter: 'Twiddler® avec cône composite en fibre de verre et enveloppe soyeuse'
+    }
   },
   'Satellite Flush': {
     nameFr: 'Satellite Flush',
@@ -212,14 +220,21 @@ const productsDatabase = {
     priceEn: '4900 DH TTC',
   },
   'ZA250': {
-    nameFr: 'ZA250',
-    nameEn: 'ZA250',
+    nameFr: 'ZA250-LZ Zone Amplifier',
+    nameEn: 'ZA250-LZ Zone Amplifier',
     image: path.join(__dirname, 'public', 'ZA250.webp'),
-    segment: 'portable',
-    descriptionFr: 'Enceinte portable ZA250 avec son puissant',
-    descriptionEn: 'ZA250 portable speaker with powerful sound',
-    priceFr: '3900 DH TTC',
-    priceEn: '3900 DH TTC',
+    segment: 'professional',
+    descriptionFr: 'Amplificateur de zone pour extension de systèmes sonores. Classe-D, 2x50W @ 4Ω, 2x25W @ 8Ω, 1x90W @ 70/100V',
+    descriptionEn: 'Zone amplifier for sound system expansion. Class-D, 2x50W @ 4Ω, 2x25W @ 8Ω, 1x90W @ 70/100V',
+    priceFr: 'Sur devis',
+    priceEn: 'On request',
+    details: {
+      frequencyResponse: '20 Hz - 20 kHz (+0/-3 dB, @ 1W reference 1 kHz)',
+      amplifierPower: '2x50W @ 4Ω, 2x25W @ 8Ω, 1x90W @ 70/100V',
+      thd: '< 0.3% (at full rated power)',
+      dynamicRange: '88 dB',
+      inputChannels: 'Analog: 1 unbalanced'
+    }
   },
 };
 

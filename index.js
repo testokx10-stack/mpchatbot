@@ -1,7 +1,11 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const path = require('path');
+const fs = require('fs');
 const { generateResponse } = require('./gemini');
 const { generateOllamaResponse, isOllamaAvailable } = require('./ollama');
+const { generateGroqResponse, isGroqAvailable } = require('./groq');
+const { speechToText, textToSpeech, isVoiceServiceAvailable } = require('./voice-processor');
 const { initializeCSV, loadExistingCustomers, logLead, confirmLead, getLeadsSummary, printLeads } = require('./leads');
 const { detectSegment, getSegmentRecommendation, checkFAQ, detectLanguage, buildSegmentContext, detectConversationStage } = require('./segmentDetector');
 const { getProductDetails, productsDatabase } = require('./productsDatabase');
@@ -60,7 +64,9 @@ function isProductSelection(message, phoneNumber) {
         'l1', 'pro8', 'pro16', 'pro 8', 'pro 16', 'l1pro8', 'l1pro16',
         'soundbar', 'ultra soundbar', 'smart soundbar', 'barre', 'barre de son',
         'acoustimass', 'acoustimass3', 'acousti', 'cube', 'cubes', 'haut parleur', 'enceinte', 'enceintes',
-        'caisson', 'subwoofer', 'flush', '700'
+        'caisson', 'subwoofer', 'flush', '700',
+        'iza2120', 'iza', 'iza', 'isa', 'isa2120', 'iz', 'za250', 'bose music amplifier', 'bose amplifier',
+        'dm2c', 'dm3', 'dm5', 'dm8c', 'fs2c', 'fs2se', '251'
     ];
 
     const hasAnyProductKeyword = productKeywords.some(keyword => messageLower.includes(keyword));
@@ -101,6 +107,11 @@ function extractSelectedProduct(message) {
         { name: 'l1 pro 16', regex: /\bl1.*(?:pro.*)?1[6]|\bl1.*1[6].*pro|\bl116|\bl1pro16/i },
         { name: 'l1 pro 8', regex: /\bl1.*(?:pro.*)?8|\bl1.*8.*pro|\bl108|\bl1pro8/i },
 
+        // Amplifiers
+        { name: 'iza2120', regex: /\b(iza|isa|iz)\s?2120\b|\b(iza|isa|iz)2120\b/i },
+        { name: 'za250', regex: /\bza250\b|\bza\s?250\b/i },
+        { name: 'bose music amplifier', regex: /\bbose.*(music )?amplifier\b|\bamplifier.*bose\b/i },
+
         // Soundbars
         { name: 'smart ultra soundbar', regex: /\bultra.*soundbar|\bsoundbar.*ultra/i },
         { name: 'smart soundbar', regex: /\bsmart.*soundbar|\bsoundbar.*smart|\bbarre.*son/i },
@@ -127,6 +138,9 @@ function extractSelectedProduct(message) {
     const simpleMatches = {
         'l1 pro 16': /\bl116|\bl1pro16|\bl1.*16/i,
         'l1 pro 8': /\bl108|\bl1pro8|\bl1.*8/i,
+        'iza2120': /\biza2120|\bisa2120|\biza\s?2120|\bisa\s?2120/i,
+        'za250': /\bza250|\bza\s?250/i,
+        'bose music amplifier': /\bbose.*amplifier/i,
         'smart soundbar': /\bsoundbar/i,
         'smart ultra caisson 700': /\bultra.*caisson|\bsmart.*ultra.*caisson/i,
         'acoustimass 3': /\bacoustimass3|\bcaisson.*acoustimass/i,
@@ -228,6 +242,9 @@ const PURCHASE_QUESTION_KEYWORDS = /\b(voulez-vous|vous voulez|veux-tu|commander
 // Goodbye keywords detection - ONLY explicit farewells, not declines
 const GOODBYE_KEYWORDS = /\b(bye|à bientôt|au revoir|bonne soirée|bonne nuit|bonne journée|goodbye|à plus tard|à plus|tciao|tchao|c'est tout|adieu|salut final)\b/i;
 
+// Rejection keywords - customer doesn't want the product anymore
+const REJECTION_KEYWORDS = /\b(je ne la veux|je ne le veux|je veux plus|je ne veux plus|non je la veux|non je le veux|non merci|je refuse|annuler|annule|cancel|pas besoin|j'en veux pas|j'en veux plus|je n'ai pas besoin|trop cher|trop chère|pas interesse|pas intéressé|décidé|pas prendre)\b/i;
+
 // Extract actual segment keyword from customer message (e.g., "dj", "restaurant", "maison")
 function getSegmentKeywordFromMessage(message) {
     const lowerMessage = message.toLowerCase();
@@ -313,12 +330,19 @@ function isGoodbye(message) {
 }
 
 /**
+ * Check if customer is rejecting/declining a product
+ */
+function isRejection(message) {
+    return REJECTION_KEYWORDS.test(message);
+}
+
+/**
  * Check if customer is requesting photos
  * @param {string} message - Customer message
  * @returns {boolean} - True if requesting photos
  */
 function isPhotoRequest(message) {
-    const photoKeywords = ['photo', 'image', 'voir', 'show', 'pictures', 'pic', 'visual', 'visuel', 'screenshot', 'capture', 'image du', 'photos du'];
+    const photoKeywords = ['photo', 'image', 'show', 'pictures', 'pic', 'visual', 'visuel', 'screenshot', 'capture', 'image du', 'photos du'];
     const lowerMessage = message.toLowerCase();
     return photoKeywords.some(keyword => lowerMessage.includes(keyword));
 }
@@ -638,10 +662,13 @@ client.on('message', async (message) => {
         }
 
         // Get customer message
-        const customerMessage = message.body.trim();
+        let customerMessage = message.body.trim();
         
-        // Skip empty messages
-        if (!customerMessage) {
+        // CHECK FOR VOICE MESSAGE (ptt - push to talk) - Check before empty message check
+        const hasVoice = message.type === 'ptt' || message.type === 'audio' || (message.hasMedia && message.mimetype && message.mimetype.includes('audio'));
+        
+        // Skip empty text messages BUT NOT voice messages
+        if (!customerMessage && !hasVoice) {
             return;
         }
 
@@ -662,7 +689,80 @@ client.on('message', async (message) => {
             displayPhone = phoneNumber;
         }
 
-        console.log(`📩 New message from ${displayPhone}: ${customerMessage}`);
+        console.log(`📩 New message from ${displayPhone}: ${customerMessage || '(voice)'}`);
+        console.log(`   Message type: ${message.type}, hasMedia: ${message.hasMedia}, mimetype: ${message.mimetype}`);
+
+        if (hasVoice) {
+            console.log('🎤 VOICE MESSAGE DETECTED!');
+            
+            // Initialize customer if new
+            if (!knownCustomers[phoneNumber]) {
+                console.log('🆕 NEW CUSTOMER via voice! Initializing...');
+                knownCustomers[phoneNumber] = true;
+                conversationHistories[phoneNumber] = [];
+                customerStatus[phoneNumber] = 'new';
+                currentProduct[phoneNumber] = null;
+                openingQuestionAsked[phoneNumber] = false;
+                awaitingProductChoice[phoneNumber] = false;
+                customerSegment[phoneNumber] = null;
+                customerLanguage[phoneNumber] = detectLanguage('');
+                conversationStage[phoneNumber] = 'initial';
+                lastRecommendationSent[phoneNumber] = null;
+            }
+            
+            try {
+                // Download the audio
+                const media = await message.downloadMedia();
+                
+                if (!media || !media.data) {
+                    console.log('⚠️ Could not download voice message');
+                    // Send text fallback
+                    await message.reply('Désolé, je n\'arrive pas à traiter les messages vocaux. Pouvez-vous me écrire votre message? 😊');
+                    return;
+                }
+                
+                // Convert base64 to buffer
+                const audioBuffer = Buffer.from(media.data, 'base64');
+                console.log(`📎 Audio size: ${audioBuffer.length} bytes`);
+                
+                // Detect language based on customer history or default to French
+                const detectedLang = customerLanguage[phoneNumber] || 'french';
+                
+                // Map detected language to TTS language (Arabic uses Arabic TTS, French uses English)
+                let ttsLang = 'english';
+                if (detectedLang === 'arabic' || detectedLang === 'darija') {
+                    ttsLang = 'arabic';
+                }
+                
+                // Process: STT -> AI -> TTS
+                const { isGroqAvailable } = require('./groq');
+                
+                // Step 1: Speech to Text
+                console.log('🔄 Step 1: Converting speech to text...');
+                const transcribedText = await speechToText(audioBuffer);
+                
+                if (!transcribedText) {
+                    await message.reply('Désolé, je n\'arrive pas à comprendre ce message vocal. Pouvez-vous me l\'écrire? 🙏');
+                    return;
+                }
+                
+                console.log(`📝 Transcribed: "${transcribedText}"`);
+                
+                // Update language detection from transcribed text
+                customerLanguage[phoneNumber] = detectLanguage(transcribedText);
+                console.log(`📊 Language detected from voice: ${customerLanguage[phoneNumber]}`);
+                
+                // Convert voice to text and let normal bot flow handle it
+                // This ensures voice messages go through same logic as text (welcome, products, FAQ, etc.)
+                customerMessage = transcribedText;
+                
+                // Continue to normal message processing (don't return early)
+            } catch (voiceError) {
+                console.error('❌ Voice processing error:', voiceError.message);
+                await message.reply('Désolé, une erreur s\'est produite. Pouvez-vous écrire votre message? 🙏');
+                return;
+            }
+        }
 
         // CHECK IF CUSTOMER IS SAYING GOODBYE FIRST (before anything else)
         if (isGoodbye(customerMessage)) {
@@ -681,6 +781,70 @@ client.on('message', async (message) => {
             }
             
             return; // Exit early - no further processing for goodbye
+        }
+
+        // CHECK IF CUSTOMER IS REJECTING/DECLINING A PRODUCT
+        if (isRejection(customerMessage)) {
+            console.log('❌ REJECTION DETECTED! Customer declining product.');
+            
+            // Clear the current product since they don't want it anymore
+            currentProduct[phoneNumber] = null;
+            customerStatus[phoneNumber] = 'interested';
+            
+            // Send helpful response
+            const rejectionResponse = `Aucun problème ! 😊
+            
+Si vous avez besoin d'autre chose ou si vous voulez voir d'autres produits, je suis là !
+
+Avez-vous besoin d'aide avec autre chose?`;
+            
+            await message.reply(rejectionResponse);
+            console.log(`📤 Rejection handled - offered alternatives`);
+            
+            // Add to conversation history (ensure it exists first)
+            if (!conversationHistories[phoneNumber]) {
+                conversationHistories[phoneNumber] = [];
+            }
+            conversationHistories[phoneNumber].push({
+                role: 'customer',
+                content: customerMessage
+            });
+            conversationHistories[phoneNumber].push({
+                role: 'assistant',
+                content: rejectionResponse
+            });
+            
+            // Log the rejection
+            batchLogger.add(phoneNumber, 'interested', customerMessage, 'Product rejected - offered alternatives');
+            
+            return; // Exit early - no further processing for rejection
+        }
+
+        // CHECK FOR ADDRESS/LOCATION QUESTIONS FIRST - before photo request
+        const addressKeywordsEarly = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
+        if (addressKeywordsEarly.test(customerMessage)) {
+            console.log('📍 ADDRESS/LOCATION QUESTION DETECTED!');
+            
+            // FRENCH ONLY - provide office info
+            const contactMessage = TEMPLATES.CONTACT;
+            
+            await message.reply(contactMessage);
+            console.log(`📤 Contact information sent`);
+            
+            // Add to conversation history
+            if (!conversationHistories[phoneNumber]) {
+                conversationHistories[phoneNumber] = [];
+            }
+            conversationHistories[phoneNumber].push({
+                role: 'customer',
+                content: customerMessage
+            });
+            conversationHistories[phoneNumber].push({
+                role: 'assistant',
+                content: contactMessage
+            });
+            
+            return; // Exit after providing contact info
         }
 
         // CHECK IF CUSTOMER IS REQUESTING PHOTOS
@@ -769,7 +933,7 @@ client.on('message', async (message) => {
             console.log(`📊 Language: ${customerLanguage[phoneNumber]} | Waiting for customer context...`);;
             
             // CHECK FOR ADDRESS/LOCATION QUESTIONS FIRST - before greeting
-            const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite)\b/i;
+            const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
             if (addressKeywords.test(customerMessage)) {
                 console.log('📍 ADDRESS/LOCATION QUESTION DETECTED! (New customer)');
                 
@@ -801,8 +965,17 @@ client.on('message', async (message) => {
             // FRENCH ONLY - ALL MESSAGES IN FRENCH
             const greetingMessage = TEMPLATES.GREETING;
             
-            await message.reply(greetingMessage);
-            console.log(`📤 Greeting with qualification question sent`);
+                    // Send logo with welcome message in single message
+                    const logoPath = path.join(__dirname, 'public', 'logo.webp');
+                    if (fs.existsSync(logoPath)) {
+                        const logoMedia = MessageMedia.fromFilePath(logoPath);
+                        const logoCaption = greetingMessage;
+                        await client.sendMessage(message.from, logoMedia, { caption: logoCaption });
+                        console.log('📸 Logo + welcome message sent to new customer');
+            } else {
+                await message.reply(greetingMessage);
+                console.log(`📤 Greeting with qualification question sent`);
+            }
             
             // Add to conversation history
             conversationHistories[phoneNumber].push({
@@ -864,7 +1037,7 @@ client.on('message', async (message) => {
                 }
                 
                 // CHECK FOR ADDRESS/LOCATION QUESTIONS FIRST - before welcome message
-                const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite)\b/i;
+                const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
                 if (addressKeywords.test(customerMessage)) {
                     console.log('📍 ADDRESS/LOCATION QUESTION DETECTED! (Returning customer)');
                     
@@ -908,8 +1081,18 @@ client.on('message', async (message) => {
                     
                     // Send welcome message first
                     const greetingMessage = TEMPLATES.GREETING;
-                    await message.reply(greetingMessage);
-                    console.log(`📤 Welcome message sent to returning customer`);
+                    
+                    // Send logo with welcome message in single message
+                    const logoPath = path.join(__dirname, 'public', 'logo.webp');
+                    if (fs.existsSync(logoPath)) {
+                        const logoMedia = MessageMedia.fromFilePath(logoPath);
+                        const logoCaption = greetingMessage;
+                        await client.sendMessage(message.from, logoMedia, { caption: logoCaption });
+                        console.log('📸 Logo + welcome message sent to returning customer');
+                    } else {
+                        await message.reply(greetingMessage);
+                        console.log(`📤 Welcome message sent to returning customer`);
+                    }
                     
                     // Then send product recommendation - FILTER to show ONLY the requested product type
 let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegment[phoneNumber] === 'residential' ? 'résidentielle' : customerSegment[phoneNumber] === 'professional' ? 'professionnelle' : customerSegment[phoneNumber] === 'portable' ? 'DJ' : (segmentRec.segment === 'residential' ? 'résidentielle' : segmentRec.segment === 'professional' ? 'professionnelle' : 'DJ'));
@@ -998,8 +1181,17 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                 
                 const greetingMessage = TEMPLATES.GREETING;
                 
-                await message.reply(greetingMessage);
-                console.log(`📤 Welcome message sent to returning customer`);
+                // Send logo with welcome message in single message
+                const logoPath = path.join(__dirname, 'public', 'logo.webp');
+                if (fs.existsSync(logoPath)) {
+                    const logoMedia = MessageMedia.fromFilePath(logoPath);
+                    const logoCaption = greetingMessage;
+                    await client.sendMessage(message.from, logoMedia, { caption: logoCaption });
+                    console.log('📸 Logo + welcome message sent to returning customer');
+                } else {
+                    await message.reply(greetingMessage);
+                    console.log(`📤 Welcome message sent to returning customer`);
+                }
                 
                 // Mark that we've asked the opening question
                 openingQuestionAsked[phoneNumber] = true;
@@ -1019,7 +1211,7 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
             
             // If we reach here, it's a returning customer who has already seen the welcome message
             // but is sending a new message - check if they're asking for address/location first
-            const addressKeywords2 = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite)\b/i;
+            const addressKeywords2 = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
             if (addressKeywords2.test(customerMessage)) {
                 console.log('📍 ADDRESS/LOCATION QUESTION DETECTED! (Returning customer - welcome already shown)');
                 
@@ -1085,10 +1277,27 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                     currentProduct[phoneNumber] = selectedProduct;
                     console.log(`✅ Product selected: ${selectedProduct}`);
 
-                    // Send informative response about the selected product
+                    // Get product details
                     const productDetails = getCachedProductDetails(selectedProduct);
                     const price = getCachedProductPrice(selectedProduct);
 
+                    // Send product image if available
+                    if (productDetails && productDetails.image) {
+                        try {
+                            const fs = require('fs');
+                            if (fs.existsSync(productDetails.image)) {
+                                console.log(`📸 Sending product image: ${selectedProduct}`);
+                                const media = MessageMedia.fromFilePath(productDetails.image);
+                                const captionFr = `🎵 **${productDetails ? productDetails.nameFr : selectedProduct}**\n\n${productDetails ? productDetails.descriptionFr : 'Produit audio premium'}\n\n💰 Prix: ${price.priceFr}`;
+                                await client.sendMessage(message.from, media, { caption: captionFr });
+                                console.log(`✅ Product image sent: ${selectedProduct}`);
+                            }
+                        } catch (imageError) {
+                            console.warn(`⚠️ Error sending product image: ${imageError.message}`);
+                        }
+                    }
+
+                    // Send informative response about the selected product
                     const infoMsg = `🎵 **${productDetails ? productDetails.nameFr : selectedProduct}**\n\n${productDetails ? productDetails.descriptionFr : 'Produit audio premium'}\n\n💰 Prix: ${price.priceFr}\n\nIntéressé ? Je peux vous donner plus de détails, vous montrer des photos, ou vous aider à commander ! 😊`;
 
                     await message.reply(infoMsg);
@@ -1222,7 +1431,7 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
         }
 
         // CHECK FOR ADDRESS/LOCATION QUESTIONS - Provide office contact info
-        const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite)\b/i;
+        const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
         if (addressKeywords.test(customerMessage)) {
             console.log('📍 ADDRESS/LOCATION QUESTION DETECTED!');
             

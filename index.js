@@ -30,8 +30,13 @@ const client = new Client({
     }),
     puppeteer: {
         headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        args: process.env.NODE_ENV === 'production' 
+            ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+            : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        executablePath: process.env.NODE_ENV === 'production' 
+            ? require('@sparticuz/chromium').executablePath 
+            : undefined,
+        ignoreDefaultArgs: process.env.NODE_ENV === 'production' ? ['--disable-extensions'] : false
     }
 });
 

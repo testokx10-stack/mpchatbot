@@ -26,17 +26,11 @@ const batchLogger = new BatchLeadLogger(logLead);
 // Initialize WhatsApp client
 const client = new Client({
     authStrategy: new LocalAuth({
-        dataPath: './.wwebjs_auth_new' // Use a different session directory
+        dataPath: './.wwebjs_auth_new'
     }),
     puppeteer: {
         headless: true,
-        args: process.env.NODE_ENV === 'production' 
-            ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
-            : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-        executablePath: process.env.NODE_ENV === 'production' 
-            ? require('@sparticuz/chromium').executablePath 
-            : undefined,
-        ignoreDefaultArgs: process.env.NODE_ENV === 'production' ? ['--disable-extensions'] : false
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
 });
 

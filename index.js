@@ -7,8 +7,8 @@ const { generateOllamaResponse, isOllamaAvailable } = require('./ollama');
 const { generateGroqResponse, isGroqAvailable } = require('./groq');
 const { speechToText, textToSpeech, isVoiceServiceAvailable } = require('./voice-processor');
 const { initializeCSV, loadExistingCustomers, logLead, confirmLead, getLeadsSummary, printLeads } = require('./leads');
-const { detectSegment, getSegmentRecommendation, checkFAQ, detectLanguage, buildSegmentContext, detectConversationStage } = require('./segmentDetector');
-const { getProductDetails, productsDatabase } = require('./productsDatabase');
+const { detectSegment, getSegmentRecommendation, checkFAQ, detectLanguage, buildSegmentContext, detectConversationStage, detectComparison } = require('./segmentDetector');
+const { getProductDetails, productsDatabase, getProductComparison } = require('./productsDatabase');
 const { TEMPLATES, fillTemplate } = require('./templates');
 
 // Memory management and cleanup
@@ -81,7 +81,7 @@ function isProductSelection(message, phoneNumber) {
     const likelySelection = isShortMessage && hasAnyProductKeyword;
 
     // Check for explicit selection keywords
-    const selectionKeywords = /\b(je veux|je veux que|je prends|j'achète|je choisis|la |le |les |ce |cette |cet |du |de la |des |ça |ca |celle |celui|celui-ci|celle-ci|celle-là|celui-là|ça|ca|c'est|je prend|prends|choisis|veut|achète)\b/i;
+    const selectionKeywords = /\b(je veux|je veux que|je prends|j'achète|je choisis|la |le |les |ce |cette |cet |du |de la |des |ça |ca |celle |celui|celui-ci|celle-ci|celle-là|celui-là|ça|ca|c'est|je prend|prends|choisis|veut|achète|commande|commandé|c bon|ok je|allez je)\b/i;
     const hasSelectionKeyword = selectionKeywords.test(messageLower);
 
     // Additional check: if customer recently got recommendations, ANY product mention is likely selection
@@ -234,7 +234,7 @@ if (existingPhones.length > 0) {
 // Purchase intent keywords - More strict detection to avoid false positives
 // Only match explicit buying signals, NOT questions like "et si je veux pour DJ?"
 // STRONG intent only: confirmed selections, explicit commands
-const PURCHASE_INTENT_KEYWORDS = /\b(je prends|je commande|j'achète|confirmer|valider|passer commande|commander|vamoooos|vamo|allons-y|allez|oui je veux|je veux acheter|je veux commander)\b/i;
+const PURCHASE_INTENT_KEYWORDS = /\b(je prends|je commande|j'achète|confirmer|valider|passer commande|commander|vamoooos|vamo|allons-y|allez|oui je veux|je veux acheter|je veux commander|c bon|ok je|j'ai commandé)\b/i;
 
 // Purchase question keywords - what the bot asks before expecting "oui" or "c'est bon"
 const PURCHASE_QUESTION_KEYWORDS = /\b(voulez-vous|vous voulez|veux-tu|commander|acheter|prêt|intéressé|ça vous intéresse|vous intéresse|passer commande|confirmer|confirme|confirmation|validation|on y va|y va|d'accord|valider|correct|c'est correct|ça vous va|ok|d'accord|vous reconnaître|reconnaissez-vous|vous plaît)\b/i;
@@ -261,10 +261,15 @@ function getSegmentKeywordFromMessage(message) {
         if (lowerMessage.includes(kw)) return kw.charAt(0).toUpperCase() + kw.slice(1);
     }
     
+    // Check for home cinema first (more specific than just "home")
+    if (lowerMessage.includes('home cinema') || lowerMessage.includes('home cinéma') || lowerMessage.includes('cinéma') || lowerMessage.includes('cinema')) {
+        return 'Home Cinéma';
+    }
+    
     // Residential keywords
-    const residentialKeywords = ['maison', 'home', 'salon', 'tv', 'cinéma', 'cinema', 'villa', 'appartement', 'domicile'];
+    const residentialKeywords = ['maison', 'home', 'salon', 'tv', 'villa', 'appartement', 'domicile'];
     for (const kw of residentialKeywords) {
-        if (lowerMessage.includes(kw)) return kw.charAt(0).toUpperCase() + kw.slice(1);
+        if (lowerMessage.includes(kw)) return 'Home';
     }
     
     return null; // No specific keyword found
@@ -352,7 +357,7 @@ function isPhotoRequest(message) {
  * @param {string} message - Customer message
  * @returns {array} - Array of product names found
  */
-function extractProductNamesFromMessage(message) {
+function extractProductNamesFromMessage(message, phoneNumber) {
     const productNames = Object.keys(productsDatabase);
     const lowerMessage = message.toLowerCase();
     const foundProducts = [];
@@ -821,7 +826,7 @@ Avez-vous besoin d'aide avec autre chose?`;
         }
 
         // CHECK FOR ADDRESS/LOCATION QUESTIONS FIRST - before photo request
-        const addressKeywordsEarly = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
+        const addressKeywordsEarly = /\b(adresse|address|office|bureau|local|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
         if (addressKeywordsEarly.test(customerMessage)) {
             console.log('📍 ADDRESS/LOCATION QUESTION DETECTED!');
             
@@ -853,7 +858,7 @@ Avez-vous besoin d'aide avec autre chose?`;
             
             try {
                 // Extract product names mentioned in the message
-                const mentionedProducts = extractProductNamesFromMessage(customerMessage);
+                const mentionedProducts = extractProductNamesFromMessage(customerMessage, phoneNumber);
                 
                 if (mentionedProducts.length > 0) {
                     console.log(`📸 Sending photos for products: ${mentionedProducts.join(', ')}`);
@@ -886,6 +891,11 @@ Avez-vous besoin d'aide avec autre chose?`;
                     
                     await message.reply(followUp);
                     console.log(`💬 Sent photo response`);
+                    
+                    // Log interaction
+                    batchLogger.add(phoneNumber, 'viewed_photos', customerMessage);
+                    
+                    return; // Exit - photo request handled, no further processing needed
                 } else {
                     // No specific products mentioned - send generic response
                     const response = detectLanguage(customerMessage) === 'fr'
@@ -894,13 +904,11 @@ Avez-vous besoin d'aide avec autre chose?`;
                     
                     await message.reply(response);
                     console.log(`💬 Asked for product clarification`);
+                    
+                    // Log interaction and exit - no further processing needed for photo request
+                    batchLogger.add(phoneNumber, 'viewed_photos', customerMessage);
+                    return;
                 }
-                
-                // Log interaction
-                batchLogger.add(phoneNumber, 'viewed_photos', customerMessage);
-                
-                // Short delay before continuing to normal processing (optional)
-                console.log(`ℹ️ Photo request processed, continuing normal message flow...`);
                 
             } catch (photoError) {
                 console.error('❌ Error handling photo request:', photoError);
@@ -933,7 +941,7 @@ Avez-vous besoin d'aide avec autre chose?`;
             console.log(`📊 Language: ${customerLanguage[phoneNumber]} | Waiting for customer context...`);;
             
             // CHECK FOR ADDRESS/LOCATION QUESTIONS FIRST - before greeting
-            const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
+            const addressKeywords = /\b(adresse|address|office|bureau|local|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
             if (addressKeywords.test(customerMessage)) {
                 console.log('📍 ADDRESS/LOCATION QUESTION DETECTED! (New customer)');
                 
@@ -1037,7 +1045,7 @@ Avez-vous besoin d'aide avec autre chose?`;
                 }
                 
                 // CHECK FOR ADDRESS/LOCATION QUESTIONS FIRST - before welcome message
-                const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
+                const addressKeywords = /\b(adresse|address|office|bureau|local|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
                 if (addressKeywords.test(customerMessage)) {
                     console.log('📍 ADDRESS/LOCATION QUESTION DETECTED! (Returning customer)');
                     
@@ -1060,6 +1068,52 @@ Avez-vous besoin d'aide avec autre chose?`;
                     // Log the interaction
                     batchLogger.add(phoneNumber, 'interested', customerMessage, 'Asking for office/email contact');
                     return; // Exit - wait for customer's preference
+                }
+                
+                // ========== CHECK FOR PRODUCT COMPARISON REQUEST ==========
+                console.log('🔍 Checking for comparison request...');
+                const comparisonResult = detectComparison(customerMessage);
+                
+                if (comparisonResult && comparisonResult.isComparison && comparisonResult.products.length >= 2) {
+                    console.log(`📊 COMPARISON REQUEST DETECTED: ${comparisonResult.products.join(' vs ')}`);
+                    
+                    // Detect language
+                    const language = detectLanguage(customerMessage);
+                    const isLanguageFrench = language === 'darija' || language === 'french';
+                    
+                    // Get comparison data
+                    const comparison = getProductComparison(comparisonResult.products[0], comparisonResult.products[1]);
+                    
+                    let comparisonResponse;
+                    if (comparison) {
+                        // Use detailed comparison template
+                        comparisonResponse = isLanguageFrench ? comparison.recommendationFr : comparison.recommendationEn;
+                        console.log('✅ Using predefined comparison template');
+                    } else {
+                        // Generic comparison response
+                        const prod1 = comparisonResult.products[0];
+                        const prod2 = comparisonResult.products[1];
+                        comparisonResponse = isLanguageFrench 
+                          ? `**Comparaison ${prod1} vs ${prod2}** 📊\n\nVous comparez deux excellents produits! Pour une comparaison personnalisée:\n\n📱 Contactez notre équipe: +212 6 00 051 612\n\nNos experts vous aideront à choisir le meilleur pour vos besoins! 😊`
+                          : `**${prod1} vs ${prod2} Comparison** 📊\n\nYou're comparing two excellent products! For a personalized comparison:\n\n📱 Contact our team: +212 6 00 051 612\n\nOur experts will help you choose the best for your needs! 😊`;
+                    }
+                    
+                    // Send comparison
+                    await message.reply(comparisonResponse);
+                    console.log('📤 Comparison sent to customer');
+                    
+                    // Log interaction
+                    conversationHistories[phoneNumber].push({
+                        role: 'customer',
+                        content: customerMessage
+                    });
+                    conversationHistories[phoneNumber].push({
+                        role: 'assistant',
+                        content: comparisonResponse
+                    });
+                    
+                    batchLogger.add(phoneNumber, 'interested', customerMessage, `Comparison: ${comparisonResult.products.join(' vs ')}`);
+                    return; // Exit - comparison sent
                 }
                 
                 // CHECK IF CUSTOMER IS ASKING FOR A SPECIFIC PRODUCT - show it immediately
@@ -1095,7 +1149,7 @@ Avez-vous besoin d'aide avec autre chose?`;
                     }
                     
                     // Then send product recommendation - FILTER to show ONLY the requested product type
-let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegment[phoneNumber] === 'residential' ? 'résidentielle' : customerSegment[phoneNumber] === 'professional' ? 'professionnelle' : customerSegment[phoneNumber] === 'portable' ? 'DJ' : (segmentRec.segment === 'residential' ? 'résidentielle' : segmentRec.segment === 'professional' ? 'professionnelle' : 'DJ'));
+let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegment[phoneNumber] === 'residential' ? 'Home Cinéma' : customerSegment[phoneNumber] === 'professional' ? 'Professionnelle' : customerSegment[phoneNumber] === 'portable' ? 'DJ' : (segmentRec.segment === 'residential' ? 'Home Cinéma' : segmentRec.segment === 'professional' ? 'Professionnelle' : 'DJ'));
                     const productDescription = `• ${segmentRec.features}\n• Idéal pour: ${segmentRec.useCase}`;
 
                     // Filter products to show ONLY the requested type (e.g., only subwoofers if "subwoofer" is mentioned)
@@ -1134,49 +1188,57 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                     
                     // Use filtered products for display
                     const availableProducts = filteredProducts.map(p => p.name).join(' ou ');
-                    const recommendationMessage = `Parfait! Pour ${segmentName}, voici nos solutions:\n\n🎵 ${availableProducts}\n\n${productDescription}\n\nQuel est votre besoin exact? 😊`;
+                    
+                    // Ask specific questions based on the customer's inquiry instead of generic list
+                    let needClarification;
+                    
+                    // Check if it's a multi-room/villa installation request
+                    if (customerMessage.toLowerCase().includes('etage') || 
+                        customerMessage.toLowerCase().includes('villa') ||
+                        customerMessage.toLowerCase().includes('maison') ||
+                        customerMessage.toLowerCase().includes('plusieurs') ||
+                        customerMessage.toLowerCase().includes('multi')) {
+                        
+                        needClarification = `Pour installer le son dans votre maison/étage, j'ai besoin de quelques informations:\n\n🏠 **Quelle utilisation?**\n- Musique dans toutes les pièces?\n- Home cinéma au salon?\n- Les deux?\n\n📍 **Type d'installation?**\n- Encastré (dans le mur/plafond)?\n- Externe (enceintes visibles)?\n- Mixte?\n\nDites-moi plus sur vos besoins et je vous recommende le meilleur! 😊`;
+                    } else if (customerMessage.toLowerCase().includes('home cinema') || 
+                               customerMessage.toLowerCase().includes('home cinéma') ||
+                               customerMessage.toLowerCase().includes('cinéma') ||
+                               customerMessage.toLowerCase().includes('film') ||
+                               customerMessage.toLowerCase().includes('tv') ||
+                               customerMessage.toLowerCase().includes('télé')) {
+                        
+                        needClarification = `Pour un home cinéma, parfait choix! 🎬\n\nQuel type de configuration préférez-vous?\n\n🎵 **Options:**\n1. **Soundbar** - Simple et efficace (Smart Soundbar ou Smart Ultra Soundbar)\n2. **Surround complet** - Acoustimass (cubes + caisson) pour son immersif\n3. **Caisson seul** - Pour renforcer les basses de votre TV\n\nVotre budget? (Entrée gamme / Milieu / Premium)`;
+                    } else if (customerMessage.toLowerCase().includes('musique') || 
+                               customerMessage.toLowerCase().includes('musique') ||
+                               customerMessage.toLowerCase().includes('playlist') ||
+                               customerMessage.toLowerCase().includes('spotify')) {
+                        
+                        needClarification = `Pour la musique, plusieurs options s'offrent à vous:\n\n🎵 **Solutions:**\n- **Smart Soundbar** - Son immersif, connexion WiFi\n- **Encastrables DM** - Pour installation discrète\n- **L1 PRO** - Pour événements/parties\n\nDans quelle pièce? Salon, chambre, terrasse?`;
+                    } else {
+                        needClarification = `Parfait! Pour ${segmentName}, voici nos solutions:\n\n🎵 ${availableProducts}\n\n${productDescription}\n\nQuel est votre besoin exact? 😊`;
+                    }
+                    
+                    const recommendationMessage = needClarification;
                     
                     await message.reply(recommendationMessage);
                     console.log(`📤 Segment options sent: ${filteredProducts.map(p => p.name).join(', ')}`);
                     
-                    // Mark that we're waiting for product choice - don't re-trigger segment detection on next message
+                    // Mark that we're waiting for customer clarification - don't send images yet
                     awaitingProductChoice[phoneNumber] = true;
                     
-                    // Send images for FILTERED products only
-                    try {
-                        const { MessageMedia } = require('whatsapp-web.js');
-                        const fs = require('fs');
-                        
-                        for (const product of filteredProducts) {
-                            if (product.image && fs.existsSync(product.image)) {
-                                console.log(`📸 Sending image for: ${product.name}`);
-                                const media = MessageMedia.fromFilePath(product.image);
-                                const captionFr = `🎵 ${product.name}\n\n${product.details ? product.details.descriptionFr : ''}`;
-                                await client.sendMessage(message.from, media, { caption: captionFr });
-                                console.log(`✅ Image sent: ${product.name}`);
-                            }
-                        }
-                    } catch (imageError) {
-                        console.warn(`⚠️ Error sending product images: ${imageError.message}`);
-                    }
-                    
-                    // Mark that we've asked the opening question
-                    openingQuestionAsked[phoneNumber] = true;
-                    
-                    // Add to conversation history
+                    // Add to conversation history and EXIT - don't send images until customer confirms
                     conversationHistories[phoneNumber].push({
                         role: 'customer',
                         content: customerMessage
                     });
                     conversationHistories[phoneNumber].push({
                         role: 'assistant',
-                        content: greetingMessage + '\n\n' + recommendationMessage
+                        content: recommendationMessage
                     });
                     
-                    // Log lead with detected segment
-                    batchLogger.add(phoneNumber, 'interested', customerMessage, `Segment: ${customerSegment[phoneNumber]} | Options: ${filteredProducts.map(p => p.name).join(', ')}`);
-                    
-                    return; // Exit - product shown
+                    batchLogger.add(phoneNumber, 'interested', customerMessage, `Asked for clarification: ${segmentName}`);
+                    console.log(`📝 Waiting for customer clarification - no images sent yet`);
+                    return; // EXIT - wait for customer's response about their needs
                 }
                 
                 const greetingMessage = TEMPLATES.GREETING;
@@ -1211,7 +1273,7 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
             
             // If we reach here, it's a returning customer who has already seen the welcome message
             // but is sending a new message - check if they're asking for address/location first
-            const addressKeywords2 = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
+            const addressKeywords2 = /\b(adresse|address|office|bureau|local|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
             if (addressKeywords2.test(customerMessage)) {
                 console.log('📍 ADDRESS/LOCATION QUESTION DETECTED! (Returning customer - welcome already shown)');
                 
@@ -1245,7 +1307,7 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                 awaitingProductChoice[phoneNumber] = false; // Clear the flag
 
                 // Extract products from customer's message
-                const productNames = extractProductNamesFromMessage(customerMessage);
+                const productNames = extractProductNamesFromMessage(customerMessage, phoneNumber);
                 if (productNames.length > 0) {
                     currentProduct[phoneNumber] = productNames[0];
                     console.log(`🎯 Product selected: ${productNames[0]}`);
@@ -1260,6 +1322,87 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                     // Log and exit
                     batchLogger.add(phoneNumber, 'interested', customerMessage, `Selected product: ${productNames[0]}`);
                     return;
+                }
+                
+                // Handle customer's answer to our questions (usage, budget, etc.)
+                const lowerResponse = customerMessage.toLowerCase();
+                
+                // Check what they need based on their response
+                let detectedNeed = null;
+                
+                if (lowerResponse.includes('musique') && !lowerResponse.includes('cinéma')) {
+                    detectedNeed = 'musique';
+                } else if (lowerResponse.includes('cinéma') || lowerResponse.includes('cinema') || lowerResponse.includes('film') || lowerResponse.includes('tv')) {
+                    detectedNeed = 'cinema';
+                } else if (lowerResponse.includes('les deux') || lowerResponse.includes('tout') || lowerResponse.includes('complet')) {
+                    detectedNeed = 'both';
+                } else if (lowerResponse.includes('entrée') || lowerResponse.includes('pas cher') || lowerResponse.includes('budget')) {
+                    detectedNeed = 'budget';
+                } else if (lowerResponse.includes('premium') || lowerResponse.includes('haut') || lowerResponse.includes('qualité')) {
+                    detectedNeed = 'premium';
+                } else if (lowerResponse.includes('milieu') || lowerResponse.includes('moyen')) {
+                    detectedNeed = 'mid';
+                } else if (lowerResponse.includes('encastré') || lowerResponse.includes('encastrer') || lowerResponse.includes('discret')) {
+                    detectedNeed = 'encastre';
+                } else if (lowerResponse.includes('externe') || lowerResponse.includes('visible')) {
+                    detectedNeed = 'externe';
+                }
+                
+                if (detectedNeed) {
+                    // Send appropriate products based on their need
+                    let productsToShow = [];
+                    let responseMsg = '';
+                    
+                    switch(detectedNeed) {
+                        case 'musique':
+                            productsToShow = ['Smart Soundbar', 'DM2C', 'DM3 Flush'];
+                            responseMsg = `Parfait! Pour la musique, voici nos meilleures solutions:\n\n🎵 Smart Soundbar - Son immersif, connexion WiFi\n🎵 DM2C Encastrable - Pour installation discrète\n🎵 DM3 Flush - Son premium encastré\n\nVoulez-vous voir les photos?`;
+                            break;
+                        case 'cinema':
+                            productsToShow = ['Smart Ultra Soundbar', 'Acoustimass', 'Acoustimass 3'];
+                            responseMsg = `Parfait! Pour le home cinéma, voici nos meilleures solutions:\n\n🎵 Smart Ultra Soundbar - Premium avec Dolby Atmos\n🎵 Acoustimass - Système surround complet\n🎵 Acoustimass 3 - Caisson de basses puissant\n\nVoulez-vous voir les photos?`;
+                            break;
+                        case 'both':
+                            productsToShow = ['Smart Ultra Soundbar', 'DM3 Flush', 'Acoustimass'];
+                            responseMsg = `Parfait! Pour musique et home cinéma, voici nos meilleures solutions:\n\n🎵 Smart Ultra Soundbar - Polyvalent premium\n🎵 DM3 Flush - Pour musique dans plusieurs pièces\n🎵 Acoustimass - Pour cinéma immersif\n\nVoulez-vous voir les photos?`;
+                            break;
+                        case 'budget':
+                            productsToShow = ['Smart Soundbar', 'DM2C'];
+                            responseMsg = `Parfait! Voici nos solutions entrée de gamme:\n\n🎵 Smart Soundbar - 4900 DH environ\n🎵 DM2C Encastrable - 1800 DH\n\nVoulez-vous voir les photos?`;
+                            break;
+                        case 'premium':
+                            productsToShow = ['Smart Ultra Soundbar', 'Smart Ultra Caisson 700', 'DM8C'];
+                            responseMsg = `Parfait! Voici nos solutions premium:\n\n🎵 Smart Ultra Soundbar - Le top du home cinéma\n🎵 Smart Ultra Caisson 700 - Caisson premium\n🎵 DM8C Flush - Haut de gamme professionnel\n\nVoulez-vous voir les photos?`;
+                            break;
+                        default:
+                            // Just ask again
+                            responseMsg = `Je n'ai pas bien compris votre réponse. Pouvez-vous préciser:\n\n• Usage: Musique / Home cinéma / Les deux?\n• Budget: Entrée / Milieu / Premium?\n\nOu donnez le nom d'un produit qui vous interesse (Soundbar, Acoustimass, DM2C, etc.)`;
+                    }
+                    
+                    if (productsToShow.length > 0) {
+                        await message.reply(responseMsg);
+                        
+                        // Send images for recommended products
+                        try {
+                            const { MessageMedia } = require('whatsapp-web.js');
+                            const fs = require('fs');
+                            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+                            
+                            for (const prodName of productsToShow.slice(0, 4)) {
+                                const prod = getProductDetails(prodName);
+                                if (prod && prod.image && fs.existsSync(prod.image)) {
+                                    const media = MessageMedia.fromFilePath(prod.image);
+                                    await client.sendMessage(message.from, media);
+                                    await delay(500);
+                                }
+                            }
+                        } catch (imgErr) {
+                            console.warn(`⚠️ Error sending images: ${imgErr.message}`);
+                        }
+                        
+                        batchLogger.add(phoneNumber, 'interested', customerMessage, `Need detected: ${detectedNeed}`);
+                        return;
+                    }
                 }
 
                 // If no product found in message, ask for clarification but don't repeat segment question
@@ -1344,7 +1487,7 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                 const segmentRec = getSegmentRecommendation(customerSegment[phoneNumber] || 'residential');
                 
                 // Send segment recommendation
-                let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegment[phoneNumber] === 'residential' ? 'résidentielle' : customerSegment[phoneNumber] === 'professional' ? 'professionnelle' : customerSegment[phoneNumber] === 'portable' ? 'DJ' : (segmentRec.segment === 'residential' ? 'résidentielle' : segmentRec.segment === 'professional' ? 'professionnelle' : 'DJ'));
+                let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegment[phoneNumber] === 'residential' ? 'Home Cinéma' : customerSegment[phoneNumber] === 'professional' ? 'Professionnelle' : customerSegment[phoneNumber] === 'portable' ? 'DJ' : (segmentRec.segment === 'residential' ? 'Home Cinéma' : segmentRec.segment === 'professional' ? 'Professionnelle' : 'DJ'));
                 const productDescription = `• ${segmentRec.features}\n• Idéal pour: ${segmentRec.useCase}`;
                 
                 // Filter products to show ONLY the requested type
@@ -1378,33 +1521,41 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                 }
                 
                 const availableProducts = filteredProducts.map(p => p.name).join(' ou ');
-                const recommendationMessage = `Parfait! Pour ${segmentName}, voici nos solutions:\n\n🎵 ${availableProducts}\n\n${productDescription}\n\nQuel est votre besoin exact? 😊`;
+                
+                // Ask specific questions based on the customer's inquiry
+                let needClarification;
+                
+                if (customerMessage.toLowerCase().includes('etage') || 
+                    customerMessage.toLowerCase().includes('villa') ||
+                    customerMessage.toLowerCase().includes('maison') ||
+                    customerMessage.toLowerCase().includes('plusieurs') ||
+                    customerMessage.toLowerCase().includes('multi')) {
+                    
+                    needClarification = `Pour installer le son dans votre maison/étage, j'ai besoin de quelques informations:\n\n🏠 **Quelle utilisation?**\n- Musique dans toutes les pièces?\n- Home cinéma au salon?\n- Les deux?\n\n📍 **Type d'installation?**\n- Encastré (dans le mur/plafond)?\n- Externe (enceintes visibles)?\n- Mixte?\n\nDites-moi plus sur vos besoins et je vous recommende le meilleur! 😊`;
+                } else if (customerMessage.toLowerCase().includes('home cinema') || 
+                           customerMessage.toLowerCase().includes('home cinéma') ||
+                           customerMessage.toLowerCase().includes('cinéma') ||
+                           customerMessage.toLowerCase().includes('film') ||
+                           customerMessage.toLowerCase().includes('tv') ||
+                           customerMessage.toLowerCase().includes('télé')) {
+                    
+                    needClarification = `Pour un home cinéma, parfait choix! 🎬\n\nQuel type de configuration préférez-vous?\n\n🎵 **Options:**\n1. **Soundbar** - Simple et efficace (Smart Soundbar ou Smart Ultra Soundbar)\n2. **Surround complet** - Acoustimass (cubes + caisson) pour son immersif\n3. **Caisson seul** - Pour renforcer les basses de votre TV\n\nVoulez-vous voir les photos?`;
+                } else {
+                    needClarification = `Parfait! Pour ${segmentName}, voici nos solutions:\n\n🎵 ${availableProducts}\n\n${productDescription}\n\nQuel est votre besoin exact? 😊`;
+                }
+                
+                const recommendationMessage = needClarification;
 
                 await message.reply(recommendationMessage);
                 console.log(`📤 Segment options sent: ${filteredProducts.map(p => p.name).join(', ')}`);
 
                 // Record timestamp to prevent repetition
                 lastRecommendationSent[phoneNumber] = Date.now();
-
-                // Send images for FILTERED products only
-                try {
-                    const { MessageMedia } = require('whatsapp-web.js');
-                    const fs = require('fs');
-
-                    for (const product of filteredProducts) {
-                        if (product.image && fs.existsSync(product.image)) {
-                            console.log(`📸 Sending image for: ${product.name}`);
-                            const media = MessageMedia.fromFilePath(product.image);
-                            const captionFr = `🎵 ${product.name}\n\n${product.details ? product.details.descriptionFr : ''}`;
-                            await client.sendMessage(message.from, media, { caption: captionFr });
-                            console.log(`✅ Image sent: ${product.name}`);
-                        }
-                    }
-                } catch (imageError) {
-                    console.warn(`⚠️ Error sending product images: ${imageError.message}`);
-                }
-
-                // Add to conversation history
+                
+                // Mark that we're waiting for customer clarification - don't send images yet
+                awaitingProductChoice[phoneNumber] = true;
+                
+                // Add to conversation history and EXIT - don't send images until customer confirms
                 conversationHistories[phoneNumber].push({
                     role: 'customer',
                     content: customerMessage
@@ -1413,11 +1564,10 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
                     role: 'assistant',
                     content: recommendationMessage
                 });
-
-                // Log lead with detected segment
-                batchLogger.add(phoneNumber, 'interested', customerMessage, `Segment: ${customerSegment[phoneNumber]} | Options: ${filteredProducts.map(p => p.name).join(', ')}`);
-
-                return; // Exit - product/segment shown
+                
+                batchLogger.add(phoneNumber, 'interested', customerMessage, `Asked for clarification: ${segmentName}`);
+                console.log(`📝 Waiting for customer clarification - no images sent yet`);
+                return; // EXIT - wait for customer's response about their needs
             }
             
             // No product/segment match - let Gemini AI handle the message
@@ -1431,7 +1581,7 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
         }
 
         // CHECK FOR ADDRESS/LOCATION QUESTIONS - Provide office contact info
-        const addressKeywords = /\b(adresse|address|office|bureau|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
+        const addressKeywords = /\b(adresse|address|office|bureau|local|localisation|location|where|où|quelle est votre|où est|localité|lieu|endroit|visite|showroom)\b/i;
         if (addressKeywords.test(customerMessage)) {
             console.log('📍 ADDRESS/LOCATION QUESTION DETECTED!');
             
@@ -1460,7 +1610,7 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
         }
 
         // CHECK FOR IMAGE/PHOTO REQUESTS - Send product images if available
-        const photoKeywords = /\b(photo|image|picture|pic|voir|show|plus|image de|photo de|visualiser|voir à quoi|c'est comment|comment ça|à quoi ça ressemble|photos|pkus)\b/i;
+        const photoKeywords = /\b(photo|image|picture|pic|show|image de|photo de|visualiser|voir la photo|voir des photos|voir à quoi|voir à quoi ça ressemble|c'est comment|comment ça|à quoi ça ressemble|photos)\b/i;
         if (photoKeywords.test(customerMessage)) {
             console.log('📸 IMAGE/PHOTO REQUEST DETECTED!');
             
@@ -1636,12 +1786,34 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
             // We'll track it after AI recommends
             
             // FRENCH ONLY - ALL MESSAGES IN FRENCH
-            let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegment[phoneNumber] === 'residential' ? 'résidentielle' : customerSegment[phoneNumber] === 'professional' ? 'professionnelle' : customerSegment[phoneNumber] === 'portable' ? 'DJ' : (segmentRec.segment === 'residential' ? 'résidentielle' : segmentRec.segment === 'professional' ? 'professionnelle' : 'DJ'));
+            let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegment[phoneNumber] === 'residential' ? 'Home Cinéma' : customerSegment[phoneNumber] === 'professional' ? 'Professionnelle' : customerSegment[phoneNumber] === 'portable' ? 'DJ' : (segmentRec.segment === 'residential' ? 'Home Cinéma' : segmentRec.segment === 'professional' ? 'Professionnelle' : 'DJ'));
             const productDescription = `• ${segmentRec.features}\n• Idéal pour: ${segmentRec.useCase}`;
             
-            // Build message showing available options (AI will choose specific product)
+            // Build message with context-specific questions
             const availableProducts = segmentRec.productNames.join(' ou ');
-            const recommendationMessage = `Parfait! Pour ${segmentName}, voici nos solutions:\n\n🎵 ${availableProducts}\n\n${productDescription}\n\nQuel est votre besoin exact? 😊`;
+            
+            let needClarification;
+            
+            if (customerMessage.toLowerCase().includes('etage') || 
+                customerMessage.toLowerCase().includes('villa') ||
+                customerMessage.toLowerCase().includes('maison') ||
+                customerMessage.toLowerCase().includes('plusieurs') ||
+                customerMessage.toLowerCase().includes('multi')) {
+                
+                needClarification = `Pour installer le son dans votre villa/étage, j'ai besoin de quelques informations:\n\n🏠 **Quelle utilisation?**\n- Musique dans toutes les pièces?\n- Home cinéma au salon?\n- Les deux?\n\n📍 **Type d'installation?**\n- Encastré (dans le mur/plafond)?\n- Externe (enceintes visibles)?\n- Mixte?\n\nDites-moi plus sur vos besoins et je vous recommende le meilleur! 😊`;
+            } else if (customerMessage.toLowerCase().includes('home cinema') || 
+                       customerMessage.toLowerCase().includes('home cinéma') ||
+                       customerMessage.toLowerCase().includes('cinéma') ||
+                       customerMessage.toLowerCase().includes('film') ||
+                       customerMessage.toLowerCase().includes('tv') ||
+                       customerMessage.toLowerCase().includes('télé')) {
+                
+                needClarification = `Pour un home cinéma, parfait choix! 🎬\n\nQuel type de configuration préférez-vous?\n\n🎵 **Options:**\n1. **Soundbar** - Simple et efficace (Smart Soundbar ou Smart Ultra Soundbar)\n2. **Surround complet** - Acoustimass (cubes + caisson) pour son immersif\n3. **Caisson seul** - Pour renforcer les basses de votre TV\n\nVoulez-vous voir les photos?`;
+            } else {
+                needClarification = `Parfait! Pour ${segmentName}, voici nos solutions:\n\n🎵 ${availableProducts}\n\n${productDescription}\n\nQuel est votre besoin exact? 😊`;
+            }
+            
+            const recommendationMessage = needClarification;
             
             // Add customer message and recommendation to history
             conversationHistories[phoneNumber].push({
@@ -1657,28 +1829,12 @@ let segmentName = getSegmentKeywordFromMessage(customerMessage) || (customerSegm
             await message.reply(recommendationMessage);
             console.log(`📤 Segment options sent: ${segmentRec.productNames.join(', ')}`);
             
-            // Send images for ALL products in this segment
-            try {
-                const { MessageMedia } = require('whatsapp-web.js');
-                const fs = require('fs');
-                
-                for (const product of segmentRec.allProducts) {
-                    if (product.image && fs.existsSync(product.image)) {
-                        console.log(`📸 Sending image for: ${product.name}`);
-                        const media = MessageMedia.fromFilePath(product.image);
-                        const captionFr = `🎵 ${product.name}\n\n${product.details ? product.details.descriptionFr : ''}`;
-                        await client.sendMessage(message.from, media, { caption: captionFr });
-                        console.log(`✅ Image sent: ${product.name}`);
-                    }
-                }
-            } catch (imageError) {
-                console.warn(`⚠️ Error sending product images: ${imageError.message}`);
-            }
+            // Mark that we're waiting for customer clarification - don't send images yet
+            awaitingProductChoice[phoneNumber] = true;
             
-            // Log lead with detected segment
-            batchLogger.add(phoneNumber, 'interested', customerMessage, `Segment: ${customerSegment[phoneNumber]} | Options: ${segmentRec.productNames.join(', ')}`);
-            
-            return; // Exit after recommendation, wait for feedback
+            batchLogger.add(phoneNumber, 'interested', customerMessage, `Asked for clarification: ${segmentName}`);
+            console.log(`📝 Waiting for customer clarification - no images sent yet`);
+            return; // EXIT - wait for customer's response about their needs
         }
         
         // CONFIRMATION FLOW: If purchase intent detected, send checkout + contact info

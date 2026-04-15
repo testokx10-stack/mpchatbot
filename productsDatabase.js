@@ -287,8 +287,105 @@ function getSegmentProducts(segment) {
     .map(([name, _]) => name);
 }
 
+/**
+ * Product comparison specifications
+ */
+const productComparisons = {
+  'DM2C_DM3': {
+    name1: 'DM2C',
+    name2: 'DM3 Flush',
+    comparisonData: {
+      price: {
+        DM2C: '1800 DH TTC',
+        'DM3 Flush': '2450 DH TTC',
+        verdict: '✅ **DM2C est plus économique** (+650 DH pour DM3)'
+      },
+      installation: {
+        DM2C: 'Encastré classique',
+        'DM3 Flush': 'Flush mount (design discret)',
+        verdict: '🎯 **DM3 meilleur pour l\'esthétique** (design plus lisse)'
+      },
+      qualityAudio: {
+        DM2C: 'Son professionnel de base',
+        'DM3 Flush': 'Son de meilleure qualité 🌟',
+        verdict: '⭐ **DM3 Flush supérieur** pour installations haut de gamme'
+      },
+      usage: {
+        DM2C: 'Restaurant, café, petits espaces',
+        'DM3 Flush': 'Hôtel, boutique, installations premium',
+        verdict: '📍 **Choisir par use-case**: budget → DM2C, qualité → DM3'
+      },
+      installation_complexity: {
+        DM2C: 'Facile',
+        'DM3 Flush': 'Plus complexe (flush mounting)',
+        verdict: '🔧 **DM2C plus simple** à installer'
+      }
+    },
+    recommendationFr: `**Comparaison DM2C vs DM3 Flush** 🎤\n\n📊 **Caractéristiques:**\n\n| Critère | DM2C | DM3 Flush |\n|---------|------|----------|\n| 💰 Prix | 1800 DH | 2450 DH |\n| 🎨 Design | Classique | Flush (discret) |\n| 🔊 Qualité son | Bon | Excellent ⭐ |\n| 🔧 Installation | Simple | Complexe |\n| 📍 Utilisation | All-purpose | Premium |\n\n✅ **Choisir DM2C si:**\n- Budget serré\n- Installation rapide requise\n- Installation classique\n\n✅ **Choisir DM3 Flush si:**\n- Besoin de design discret\n- Installation haut de gamme\n- Excellente qualité audio prioritaire\n- Budget plus important\n\n🎯 **Quelle est votre priorité: budget ou qualité/design?**`,
+    recommendationEn: `**DM2C vs DM3 Flush Comparison** 🎤\n\n📊 **Features:**\n\n| Item | DM2C | DM3 Flush |\n|------|------|----------|\n| 💰 Price | 1800 MAD | 2450 MAD |\n| 🎨 Design | Classic | Flush (discrete) |\n| 🔊 Sound Quality | Good | Excellent ⭐ |\n| 🔧 Installation | Simple | Complex |\n| 📍 Usage | All-purpose | Premium |\n\n✅ **Choose DM2C if:**\n- Budget constraints\n- Quick installation needed\n- Classic installation\n\n✅ **Choose DM3 Flush if:**\n- Discrete design needed\n- Premium installation\n- Audio quality priority\n- Higher budget\n\n🎯 **What's your priority: budget or quality/design?**`
+  },
+  'DM3_DM5': {
+    name1: 'DM3 Flush',
+    name2: 'DM5 Flush',
+    comparisonData: {
+      price: {
+        'DM3 Flush': '2450 DH TTC',
+        'DM5 Flush': '3450 DH TTC',
+        verdict: '💰 **DM3 moins cher** (-1000 DH)'
+      },
+      qualityAudio: {
+        'DM3 Flush': 'Très bon',
+        'DM5 Flush': 'Premium ⭐⭐',
+        verdict: '⭐ **DM5 supérieur** pour audio de luxe'
+      },
+      usage: {
+        'DM3 Flush': 'Hôtel 3-4 étoiles, boutique',
+        'DM5 Flush': 'Hôtel 5 étoiles, restaurant premium',
+        verdict: '🏆 **DM5 pour clientèle premium**'
+      },
+      power: {
+        'DM3 Flush': 'Bon',
+        'DM5 Flush': 'Puissant',
+        verdict: '🔊 **DM5 meilleure puissance**'
+      }
+    },
+    recommendationFr: `**Comparaison DM3 vs DM5 Flush** 🎤\n\n📊 **Comparatif:**\n\n| Critère | DM3 Flush | DM5 Flush |\n|---------|-----------|----------|\n| 💰 Prix | 2450 DH | 3450 DH |\n| 🔊 Qualité | Très bon | Premium ⭐⭐ |\n| 🎵 Puissance | Bon | Excellent |\n| 📍 Usage | Hôtel/Boutique | Établissement Premium |\n\n💡 **Verdict:**\n- **DM3 Flush:** Meilleur rapport qualité/prix\n- **DM5 Flush:** Installation haut de gamme avec qualité supérieure`,
+    recommendationEn: `**DM3 vs DM5 Flush Comparison** 🎤\n\n📊 **Comparison:**\n\n| Item | DM3 Flush | DM5 Flush |\n|------|-----------|----------|\n| 💰 Price | 2450 MAD | 3450 MAD |\n| 🔊 Quality | Very Good | Premium ⭐⭐ |\n| 🎵 Power | Good | Excellent |\n| 📍 Usage | Hotel/Boutique | Premium Venue |\n\n💡 **Verdict:**\n- **DM3 Flush:** Best value for money\n- **DM5 Flush:** Premium installation with superior quality`
+  },
+  'DM2C_DM3_DM5': {
+    allProducts: ['DM2C', 'DM3 Flush', 'DM5 Flush'],
+    summaryFr: `**Gamme Professionelle DM - Laquelle choisir?** 🎤\n\n📊 **Tableau comparatif:**\n\n| | DM2C | DM3 Flush | DM5 Flush |\n|---|------|-----------|----------|\n| 💰 Prix | 1800 | 2450 | 3450 |\n| 🎨 Design | Classique | Flush | Flush |\n| 🔊 Son | Bon | Très bon | Premium |\n| 📍 Lieu | Café/Petit resto | Hôtel/Boutique | Premium |\n\n✅ **Recommandations:**\n- **Budget limité** → DM2C\n- **Meilleur rapport** → DM3 Flush\n- **Premium** → DM5 Flush`,
+    summaryEn: `**Professional DM Series - Which to choose?** 🎤\n\n📊 **Comparison table:**\n\n| | DM2C | DM3 Flush | DM5 Flush |\n|---|------|-----------|----------|\n| 💰 Price | 1800 | 2450 | 3450 |\n| 🎨 Design | Classic | Flush | Flush |\n| 🔊 Sound | Good | Very Good | Premium |\n| 📍 Venue | Café/Small rest | Hotel/Boutique | Premium |\n\n✅ **Recommendations:**\n- **Budget** → DM2C\n- **Best value** → DM3 Flush\n- **Premium** → DM5 Flush`
+  }
+};
+
+/**
+ * Get comparison between two products
+ * @param {string} product1 - First product name
+ * @param {string} product2 - Second product name
+ * @returns {object|null} - Comparison data or null if not found
+ */
+function getProductComparison(product1, product2) {
+  const key = `${product1.replace(' Flush', '')}_${product2.replace(' Flush', '')}`;
+  
+  // Try both orders
+  if (productComparisons[key]) {
+    return productComparisons[key];
+  }
+  
+  // Try reversed order
+  const reverseKey = `${product2.replace(' Flush', '')}_${product1.replace(' Flush', '')}`;
+  if (productComparisons[reverseKey]) {
+    return productComparisons[reverseKey];
+  }
+  
+  return null;
+}
+
 module.exports = {
   productsDatabase,
   getProductDetails,
   getSegmentProducts,
+  getProductComparison,
+  productComparisons,
 };

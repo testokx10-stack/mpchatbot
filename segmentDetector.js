@@ -33,7 +33,7 @@ const faqDatabase = [
     answerEn: 'All our Bose products include a 2-year manufacturer\'s warranty + extended protection available.',
   },
   {
-    keywords: ['installation', 'install'],
+    keywords: ['faites l\'installation', 'installez', 'service installation', 'pose', 'installeur', 'installer chez'],
     answerFr: 'Oui, notre équipe d\'installateurs certifiés peut gérer l\'installation complète. Devis gratuit sur demande.',
     answerEn: 'Yes, our certified installation team can handle complete setup. Free quote on request.',
   },
@@ -61,6 +61,11 @@ const faqDatabase = [
     keywords: ['site', 'site web', 'website', 'web', 'internet', 'site internet'],
     answerFr: '🌐 Notre site web: https://media-prestige.com/\n\nVous y trouverez tous nos produits et services!',
     answerEn: '🌐 Our website: https://media-prestige.com/\n\nYou will find all our products and services there!',
+  },
+  {
+    keywords: ['insta', 'instagram', 'fb', 'facebook', 'youtube', 'social', 'réseaux sociaux', 'réseau social', 'social media', 'sociaux'],
+    answerFr: 'Suivez-nous sur nos réseaux sociaux:\n📱 Instagram: https://www.instagram.com/mediaprestige.official\n👍 Facebook: https://www.facebook.com/share/1Rmdxqphw3/?mibextid=wwXlfr',
+    answerEn: 'Follow us on our social media:\n📱 Instagram: https://www.instagram.com/mediaprestige.official\n👍 Facebook: https://www.facebook.com/share/1Rmdxqphw3/?mibextid=wwXlfr',
   },
 ];
 
@@ -238,6 +243,74 @@ function detectConversationStage(message) {
   return 'initial';
 }
 
+/**
+ * Detect if message is asking for a product comparison
+ * @param {string} message - Customer message
+ * @returns {object|null} - {isComparison: boolean, products: [product1, product2], type: 'mieux'|'diff'|'vs'} or null
+ */
+function detectComparison(message) {
+  const lowerMessage = message.toLowerCase();
+  
+  // Comparison keywords in French and English
+  const comparisonPatterns = [
+    // French: mieux que, meilleur que, difference, vs, comparison
+    /\b(mieux|meilleur)\b.*\b(que|vs|comparison|ou)\b/i,
+    /(dm2c|dm3|dm5|l1|l2|l3|acoustimass).*\b(vs|versus|mieux|meilleur|difference|différence|compare|comparé)\b.*/i,
+    /\b(compare|comparison|comparaison|différence|difference|mieux|meilleur)\b.*(dm2c|dm3|dm5|l1|l2|l3|acoustimass).*/i,
+    /\b(quelle.*différence|what.*difference|quel.*mieux|which.*better)\b.*(dm|l1|l2|l3|acoustimass).*/i,
+    /\b(dm2c|dm3|dm5|l1|l2|l3|acoustimass).*\b(et|ou|vs|versus)\b.*(dm2c|dm3|dm5|l1|l2|l3|acoustimass)\b/i,
+  ];
+  
+  // Check if it's a comparison question
+  let isComparison = false;
+  for (const pattern of comparisonPatterns) {
+    if (pattern.test(lowerMessage)) {
+      isComparison = true;
+      break;
+    }
+  }
+  
+  if (!isComparison) return null;
+  
+  // Extract product names from the message
+  const productPattern = /\b(dm2c|dm3|dm5|l1 pro 8|l1 pro 16|l1|l2|l3|acoustimass|smart soundbar|smart ultra soundbar|caisson|subwoofer)\b/gi;
+  const matches = message.toLowerCase().match(productPattern);
+  
+  if (!matches || matches.length < 2) {
+    return null; // Need at least 2 products to compare
+  }
+  
+  // Remove duplicates and normalize names
+  const products = [...new Set(matches.map(p => {
+    if (p.includes('dm2c')) return 'DM2C';
+    if (p.includes('dm3')) return 'DM3 Flush';
+    if (p.includes('dm5')) return 'DM5 Flush';
+    if (p.includes('l1')) return 'L1 PRO 16';
+    if (p.includes('l2')) return 'L2 PRO';
+    if (p.includes('l3')) return 'L3 PRO';
+    if (p.includes('acoustimass')) return 'Acoustimass 3';
+    if (p.includes('smart soundbar') && !p.includes('ultra')) return 'Smart Soundbar';
+    if (p.includes('smart ultra')) return 'Smart Ultra Soundbar';
+    return p.charAt(0).toUpperCase() + p.slice(1);
+  }))].slice(0, 2); // Take only first 2 products
+  
+  // Determine comparison type
+  let comparisonType = 'general';
+  if (lowerMessage.includes('mieux') || lowerMessage.includes('meilleur') || lowerMessage.includes('better') || lowerMessage.includes('best')) {
+    comparisonType = 'quality';
+  } else if (lowerMessage.includes('différence') || lowerMessage.includes('difference')) {
+    comparisonType = 'difference';
+  } else if (lowerMessage.includes('prix') || lowerMessage.includes('price') || lowerMessage.includes('coût')) {
+    comparisonType = 'price';
+  }
+  
+  return {
+    isComparison: true,
+    products: products,
+    type: comparisonType,
+  };
+}
+
 module.exports = {
   detectSegment,
   getSegmentRecommendation,
@@ -245,6 +318,7 @@ module.exports = {
   detectLanguage,
   buildSegmentContext,
   detectConversationStage,
+  detectComparison,
   chatbotData,
   faqDatabase,
 };

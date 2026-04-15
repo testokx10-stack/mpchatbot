@@ -319,6 +319,12 @@ export const chatbotFAQ = [
     answerFr: 'Support technique 24/7 WhatsApp, email et téléphone. Assistance installation incluse.',
     answerEn: '24/7 technical support via WhatsApp, email and phone. Installation assistance included.',
   },
+  {
+    questionFr: 'Où trouver Media Prestige sur les réseaux sociaux ?',
+    questionEn: 'Where can I find Media Prestige on social media?',
+    answerFr: 'Suivez-nous sur:\n📱 Instagram: https://www.instagram.com/mediaprestige.official\n👍 Facebook: https://www.facebook.com/share/1Rmdxqphw3/?mibextid=wwXlfr',
+    answerEn: 'Follow us on:\n📱 Instagram: https://www.instagram.com/mediaprestige.official\n👍 Facebook: https://www.facebook.com/share/1Rmdxqphw3/?mibextid=wwXlfr',
+  },
 ];
 
 /**
